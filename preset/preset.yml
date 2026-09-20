@@ -1,0 +1,3 @@
+name: 标准模式 + 会话工具
+description: 标准模式，另加 session_create / session_send：可在指定工作区或未分组下创建用户可见会话，也可向已有正式对话投递消息。
+order: 2
