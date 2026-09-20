@@ -254,6 +254,15 @@
 - id: present
   name: '@deepseek-ai/dsh-tool-present'
 
-# Added locally: host-side tools for user-visible conversations (dsh-session-tools).
-- id: session-tools
-  name: 'dsh-session-tools'
+# The session tools are NOT mounted here.
+#
+# `session_create` / `session_send` come from the profile bundle instead: the
+# package declares `dsh.bundle`, so `dsh plugin add` inserts it into the profile
+# layer stack (see `cordis.patch.yml`). Mounting the same package here as well
+# would instantiate it twice and register the same tool names from two
+# compositions; the tools registry rejects a duplicate name registration.
+#
+# What remains in this file is a plain copy of the shipped `standard` preset,
+# kept so that sessions whose header records this preset id still resume. The
+# tools themselves no longer depend on which preset a session runs.
+

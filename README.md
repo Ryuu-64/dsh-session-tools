@@ -40,25 +40,24 @@ DSH 宿主侧插件：给 agent 两个操作**正式对话**的工具——`sess
 包名是 `@ryuu-64/dsh-session-tools`（裸名 `dsh-session-tools` 在 npm 上已被他人占用且已弃用，不要用）。`package.json` 声明了 `dsh.bundle`，所以 `dsh plugin add` 认它是可安装插件。
 
 ```powershell
-# 1. 装进 profile。这一行同时做两件事：让 preset 能按包名解析到它，
-#    并把本插件作为 profile bundle 注册进 dsh.profile.bundles。
-#    link: 指向源码目录（改源码后要重启应用才生效——宿主进程内按 URL 缓存 ESM 模块；
-#    本插件自带本地 node_modules 软链，所以裸导入 @deepseek-ai/* 在 link 下也能解析）。
+# 装进 profile：注册成 profile bundle，工具对所有会话可用。
+# link: 指向源码目录（改源码后要重启应用才生效——宿主进程内按 URL 缓存 ESM 模块；
+# 本插件自带本地 node_modules 软链，所以裸导入 @deepseek-ai/* 在 link 下也能解析）。
 dsh plugin --profile desktop add link:C:\Users\Ryuu\.agents\dsh-plugins\dsh-session-tools
 
-#    发布之后按版本装：
-#    dsh plugin --profile desktop add @ryuu-64/dsh-session-tools
-#    想冻结本地版本就改用 tarball：
-#    npm pack ; dsh plugin --profile desktop add file:.\ryuu-64-dsh-session-tools-*.tgz
-
-# 2. 工具要挂进会话，还需要把 agent preset 放到用户 preset 根
-#    preset/ 里是一份 standard 的拷贝 + 本插件行
-Copy-Item .\preset -Destination "$env:USERPROFILE\.dsh\.agent-presets\session-tools" -Recurse
+# 发布之后按版本装：
+# dsh plugin --profile desktop add @ryuu-64/dsh-session-tools
+# 冻结本地版本改用 tarball：
+# npm pack ; dsh plugin --profile desktop add file:.\ryuu-64-dsh-session-tools-*.tgz
 ```
 
-之后新建会话时在 composer 的 preset 选择器里选它，或把 `settings.yaml` 的 `agent-presets.default` 指到它。**只有空白会话能切换 preset**，已开始的会话换不了。
+装完重启应用即可，**不需要动 agent preset**：插件作为 profile bundle 挂载，`session_create` / `session_send` 出现在每个会话里，与用哪个 preset 无关。
 
-> ⚠️ 第 1 步的 bundle 行（`cordis.patch.yml` 里的 `session-tools-bundle`）和第 2 步的 preset 行（`agent.cordis.yml` 里的 `session-tools`）是**两个入口**，各自都会 `apply` 一次本插件、注册同名工具；而工具注册表对同名注册是抛错的。目前只在"只装 preset、不装 bundle"的形态下验证过。要用 bundle 形态（npm 安装、插件市场）之前，必须先确认两条入口不会同时生效，否则会撞 `tool "session_create" is already registered`。
+### 这个包为什么还带一个 `preset/`
+
+只为兼容：早期版本把工具挂在 preset 里，那时创建的会话 header 记着 preset id `session-tools`，而 preset id 是持久契约——恢复会话时必须还能解析到它。所以 `preset/` 保留为一份**standard 的拷贝**（其中不再挂本插件），用于让那些旧会话照常恢复。
+
+它不该被当成新安装的步骤：preset 里没有本插件的任何行，抄它不会带来工具。如果某个部署里没有这类旧会话，可以整份忽略。
 
 ## 已知边界
 
