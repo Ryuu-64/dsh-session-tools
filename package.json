@@ -1,9 +1,13 @@
 {
-  "name": "dsh-session-tools",
+  "name": "@ryuu-64/dsh-session-tools",
   "version": "0.3.0",
   "description": "DSH host-side tools for formal conversations: create an independent, user-visible Session (in a named workspace or ungrouped) and deliver a message into an existing one.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ryuu-64/dsh-session-tools.git"
+  },
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
@@ -11,6 +15,15 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
@@ -26,6 +39,7 @@
   "files": [
     "lib",
     "preset",
+    "cordis.patch.yml",
     "README.md"
   ]
 }
