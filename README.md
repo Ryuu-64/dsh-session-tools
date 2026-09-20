@@ -29,7 +29,7 @@
 ## 安装
 
 ```
-dsh plugin --profile desktop add @ryuu-64/dsh-session-tools@0.4.0
+dsh plugin --profile desktop add @ryuu-64/dsh-session-tools@0.4.1
 ```
 
 从源码装：

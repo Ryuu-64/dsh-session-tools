@@ -1,6 +1,6 @@
 {
   "name": "@ryuu-64/dsh-session-tools",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Let the agent start a new chat session, or send a message to another one.",
   "type": "module",
   "license": "MIT",
@@ -42,7 +42,6 @@
   },
   "files": [
     "lib",
-    "preset",
     "cordis.patch.yml",
     "README.md"
   ]
