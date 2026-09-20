@@ -4,6 +4,13 @@
   "description": "Let the agent start a new chat session, or send a message to another one.",
   "type": "module",
   "license": "MIT",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "sessions",
+    "tools"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Ryuu-64/dsh-session-tools.git"
@@ -12,9 +19,6 @@
   "exports": {
     ".": "./lib/index.js",
     "./package.json": "./package.json"
-  },
-  "engines": {
-    "node": ">=20"
   },
   "dsh": {
     "bundle": {
