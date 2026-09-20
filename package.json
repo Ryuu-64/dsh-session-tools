@@ -1,6 +1,6 @@
 {
   "name": "@ryuu-64/dsh-session-tools",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "DSH host-side tools for formal conversations: create an independent, user-visible Session (in a named workspace or ungrouped) and deliver a message into an existing one.",
   "type": "module",
   "license": "MIT",

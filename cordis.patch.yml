@@ -1,8 +1,4 @@
 # dsh bundle patch: inserts this plugin into a profile's layer stack.
-#
-# The row id must be unique across the whole composed configuration — the
-# loader rejects duplicate entry ids — so it deliberately avoids the `session-tools`
-# id used by the agent preset that also mounts this package.
 - insert:
     - id: session-tools-bundle
       name: '@ryuu-64/dsh-session-tools'
