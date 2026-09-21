@@ -18,11 +18,20 @@
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
+    "./client": "./lib/client.js",
     "./package.json": "./package.json"
   },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-tool"
+      ]
     }
   },
   "publishConfig": {
@@ -38,7 +47,8 @@
     "@deepseek-ai/dsh-session-title": ">=0.1.5-rc.2 <0.1.6-0 || >=0.1.6-0 <0.2.0-0",
     "@deepseek-ai/dsh-tools": ">=0.1.5-rc.2 <0.1.6-0 || >=0.1.6-0 <0.2.0-0",
     "@deepseek-ai/dsh-workspace": ">=0.1.5-rc.2 <0.1.6-0 || >=0.1.6-0 <0.2.0-0",
-    "@deepseek-ai/schemastery": "^3.18.2"
+    "@deepseek-ai/schemastery": "^3.18.2",
+    "react": ">=18 <20"
   },
   "files": [
     "lib",
