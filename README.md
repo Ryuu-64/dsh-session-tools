@@ -53,7 +53,7 @@
 ## 安装
 
 ```
-dsh plugin --profile desktop add @ryuu-64/dsh-session-tools@0.5.0
+dsh plugin --profile desktop add @ryuu-64/dsh-session-tools@0.5.1
 ```
 
 从源码装：
