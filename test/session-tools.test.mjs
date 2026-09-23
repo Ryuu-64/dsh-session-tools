@@ -213,6 +213,47 @@ test("waitBudgetMs: a nonsensical budget falls back to the default, absurd value
   assert.ok(elapsed < 3000, `should have finished quickly once the work settled, took ${elapsed}ms`);
 });
 
+test("session_send queues a message whose id the wait can match", async () => {
+  // The fix matches the queued message by id, so the message must carry a real
+  // one. This asserts the id the plugin hands to followup is the same id the
+  // inbox reports while the message waits — the exact comparison the fix makes.
+  const seen = [];
+  const agent = {
+    id: "target",
+    session: { header: { cwd: "E:\\x" } },
+    status: "running",
+    inbox: {
+      get nextTurn() {
+        return seen.slice();
+      },
+    },
+    followup(message) {
+      seen.push(message);
+    },
+    whenIdle: async () => {},
+  };
+  const tools = build({
+    agentFor: (id) => (id === "target" ? agent : undefined),
+    query: queryFor(eventsFor([])),
+  });
+
+  const result = await tools.session_send.execute(
+    { sessionId: "target", message: "干活", wait: true, timeoutMs: 200 },
+    execFor("session_send"),
+  );
+
+  assert.equal(seen.length, 1, "exactly one message must be queued");
+  const queued = seen[0];
+  assert.equal(typeof queued.id, "string");
+  assert.ok(queued.id.length > 0, "the queued message must carry an id");
+  assert.equal(queued.role, "user");
+  assert.equal(queued.source?.kind, "plugin", "the message must be marked as plugin-sourced");
+  // The message never leaves the inbox, so the wait must time out rather than
+  // claim completion.
+  assert.equal(result.completed, false);
+  assert.equal(result.waited, true);
+});
+
 test("list_sessions marks archived sessions and reports state", async () => {
   const registered = [];
   const registry = { resolveByPath: async () => undefined, list: () => [], archivedSessionIds: ["archived-one"] };
