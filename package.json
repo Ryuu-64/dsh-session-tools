@@ -1,9 +1,13 @@
 {
   "name": "@ryuu-64/dsh-session-tools",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Let the agent start a new chat session, send a message to another one, or wait for it to finish.",
   "type": "module",
   "license": "MIT",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "check": "node --check lib/index.js && node --check lib/client.js && npm test"
+  },
   "keywords": [
     "deepseek-harness",
     "dsh",

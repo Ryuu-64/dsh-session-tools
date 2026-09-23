@@ -1,0 +1,23 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # The plugin has no dependencies of its own; they come from the DSH
+      # install as peerDependencies, which the tests stub rather than load.
+      - run: npm test
+      - run: node --check lib/index.js
+      - run: node --check lib/client.js
