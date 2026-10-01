@@ -33,9 +33,11 @@ function build({ agentFor = () => undefined, query, policy = "ask" } = {}) {
     agentDefaultModel: { currentSelection: () => ({ provider: "p", model: "m" }) },
     get: (serviceName) => {
       if (serviceName === "sessionQuery") return query;
+      if (serviceName === "sandboxPolicy") return { resolve: () => ({ mode: "workspace-write" }) };
       if (serviceName === "approval") {
         return {
-          effectivePolicy: () => policy,
+          overrideOf: () => policy,
+          config: { policy: "ask" },
           // The service answers with the decision itself, not a wrapper object.
           request: async () => "allowed-once",
         };
