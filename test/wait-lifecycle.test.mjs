@@ -134,6 +134,32 @@ for (const [requested, expected] of [[undefined, 60000], [-1, 60000], [0, 60000]
   });
 }
 
+// Exercise the registered defineTool wrapper, not waitBudgetMs or a raw body:
+// malformed JSON values are rejected before the plugin can choose a default.
+for (const name of ['session_create', 'session_send', 'session_wait']) {
+  for (const [label, value] of [['string', '60000'], ['null', null], ['object', {}], ['array', []], ['boolean', true], ['NaN', NaN], ['Infinity', Infinity], ['negative Infinity', -Infinity]]) {
+    test(`${name} rejects ${label} timeout at the real defineTool boundary`, async () => {
+      const f = fixture();
+      let observed = 0;
+      f.target.whenIdle = async () => { observed++; };
+      const args = { sessionId: 'target', prompt: 'synthetic', message: 'synthetic', wait: true, timeoutMs: value };
+      // Each tool gets only its own declared parameters, so timeoutMs is the
+      // sole invalid argument and the assertion cannot pass for another reason.
+      if (name === 'session_create') { delete args.sessionId; delete args.message; }
+      if (name === 'session_send') delete args.prompt;
+      if (name === 'session_wait') { delete args.prompt; delete args.message; delete args.wait; }
+      await assert.rejects(f.tools[name].execute(args, f.exec), error => {
+        assert.equal(error.code, 'INVALID_ARGS');
+        assert.match(error.message, /timeoutMs/);
+        return true;
+      });
+      assert.equal(f.delivered.length, 0);
+      assert.equal(observed, 0);
+      assert.equal(getEventListeners(f.exec.signal, 'abort').length, 0);
+    });
+  }
+}
+
 test('wait error clears timer and abort listener without disposing target', async () => {
   const f = fixture();
   f.target.whenIdle = async () => { throw new Error('synthetic driver failure'); };
