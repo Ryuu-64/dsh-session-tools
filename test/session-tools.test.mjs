@@ -158,19 +158,71 @@ test("session_send wait:true waits for the queued message, not the previous answ
   assert.equal(agent.inbox.nextTurn.length, 0, "our message must have been consumed");
 });
 
-test("session_send wait:true reports a timeout instead of a stale answer", async (t) => {
+test("session_send wait:true reports a timeout instead of a stale answer", { timeout: 3000 }, async (t) => {
   // The target never gets to our message within the budget.
   const agent = fakeAgent(t, { startDelayMs: 10_000, workMs: 10 });
   const tools = build({ agentFor: (id) => (id === "target" ? agent : undefined), query: queryFor(eventsFor([])) });
+  const realSetTimeout = globalThis.setTimeout;
+  let deadlineFired = false;
+  t.mock.method(globalThis, "setTimeout", (callback, ms, ...args) => {
+    if (ms !== 300) return realSetTimeout(callback, ms, ...args);
+    return realSetTimeout((...values) => { deadlineFired = true; callback(...values); }, ms, ...args);
+  });
+  const controller = new AbortController();
+  t.after(() => controller.abort());
 
   const result = await tools.session_send.execute(
     { sessionId: "target", message: "干活", wait: true, timeoutMs: 300 },
-    execFor("session_send"),
+    { ...execFor("session_send"), signal: controller.signal },
   );
 
   assert.equal(result.waited, true);
   assert.equal(result.completed, false, "an unanswered message must not be reported as completed");
-  assert.ok(result.elapsedMs >= 300, `must consume the budget, got ${result.elapsedMs}ms`);
+  assert.equal(result.waitStatus, "timedOut");
+  assert.equal(result.output, undefined, "timeout must not return the previous answer");
+  // Node timers and Date.now use different clocks; a real 300ms timer can
+  // produce a 299ms wall-clock delta. Verify the actual deadline fired instead.
+  assert.equal(deadlineFired, true, "must wait for the requested 300ms timer");
+  assert.equal(agent.inbox.nextTurn.length, 1, "timing out must leave the target message queued");
+});
+
+test("session_send consumes exactly its observation budget on a controlled clock", { timeout: 3000 }, async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1000 });
+  const observationStarted = Promise.withResolvers();
+  const mockedSetTimeout = globalThis.setTimeout;
+  t.mock.method(globalThis, "setTimeout", (callback, ms, ...args) => {
+    const timer = mockedSetTimeout(callback, ms, ...args);
+    // The fixture's 10s startup timer is distinct from the observation timer.
+    if (ms !== 10_000) observationStarted.resolve(ms);
+    return timer;
+  });
+  const agent = fakeAgent(t, { startDelayMs: 10_000, workMs: 10 });
+  const tools = build({ agentFor: (id) => (id === "target" ? agent : undefined), query: queryFor(eventsFor([])) });
+  const controller = new AbortController();
+  t.after(() => controller.abort());
+  const pending = tools.session_send.execute(
+    { sessionId: "target", message: "干活", wait: true, timeoutMs: 300 },
+    { ...execFor("session_send"), signal: controller.signal },
+  );
+  let settled = false;
+  pending.then(() => { settled = true; }, () => { settled = true; });
+  try {
+    assert.equal(await observationStarted.promise, 300, "forward the exact requested budget");
+    t.mock.timers.tick(299);
+    await new Promise(setImmediate); // Drain result microtasks without advancing the clock.
+    assert.equal(settled, false, "must not settle before the deadline");
+    t.mock.timers.tick(1);
+    const result = await pending;
+    assert.equal(result.waited, true);
+    assert.equal(result.completed, false);
+    assert.equal(result.waitStatus, "timedOut");
+    assert.equal(result.elapsedMs, 300);
+    assert.equal(result.output, undefined);
+    assert.equal(agent.inbox.nextTurn.length, 1);
+  } finally {
+    controller.abort();
+    await pending.catch(() => {});
+  }
 });
 
 test("session_wait waits while the target is already running", async (t) => {
