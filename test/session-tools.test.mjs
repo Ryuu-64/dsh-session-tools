@@ -33,9 +33,11 @@ function build({ agentFor = () => undefined, query, policy = "ask" } = {}) {
     agentDefaultModel: { currentSelection: () => ({ provider: "p", model: "m" }) },
     get: (serviceName) => {
       if (serviceName === "sessionQuery") return query;
+      if (serviceName === "sandboxPolicy") return { resolve: () => ({ mode: "workspace-write" }) };
       if (serviceName === "approval") {
         return {
-          effectivePolicy: () => policy,
+          overrideOf: () => policy,
+          config: { policy: "ask" },
           // The service answers with the decision itself, not a wrapper object.
           request: async () => "allowed-once",
         };
@@ -61,7 +63,17 @@ const execFor = (name) => ({ agent: { id: "self" }, name, callId: "call-1" });
  * That is what makes "queue a message, then wait" subtle: a caller that awaits
  * idle without checking the inbox can be handed the previous answer.
  */
-function fakeAgent({ startDelayMs = 0, workMs = 0, faithfulWhenIdle = true } = {}) {
+function fakeAgent(t, { startDelayMs = 0, workMs = 0, faithfulWhenIdle = true } = {}) {
+  const timers = new Set();
+  const schedule = (callback, delay) => {
+    const timer = setTimeout(() => { timers.delete(timer); callback(); }, delay);
+    timers.add(timer);
+    return timer;
+  };
+  t.after(() => {
+    for (const timer of timers) clearTimeout(timer);
+    timers.clear();
+  });
   const queued = [];
   const replies = [];
   let phase = "idle";
@@ -74,7 +86,7 @@ function fakeAgent({ startDelayMs = 0, workMs = 0, faithfulWhenIdle = true } = {
     // The driver picks the message up in a microtask, like `kick()` does.
     queueMicrotask(() => {
       queued.splice(0, queued.length);
-      setTimeout(() => {
+      schedule(() => {
         phase = "idle";
         replies.push(ANSWER_NEW);
         driver.resolve();
@@ -95,7 +107,7 @@ function fakeAgent({ startDelayMs = 0, workMs = 0, faithfulWhenIdle = true } = {
     },
     followup(message) {
       queued.push(message);
-      if (startDelayMs > 0) setTimeout(startWork, startDelayMs);
+      if (startDelayMs > 0) schedule(startWork, startDelayMs);
       else startWork();
     },
     async whenIdle() {
@@ -103,7 +115,7 @@ function fakeAgent({ startDelayMs = 0, workMs = 0, faithfulWhenIdle = true } = {
         // The tempting-but-wrong shape: it happens to work while a message sits
         // in the inbox, which is exactly why the bug hid for so long.
         return new Promise((resolve) => {
-          const poll = () => (phase === "idle" && queued.length === 0 ? resolve() : setTimeout(poll, 5));
+          const poll = () => (phase === "idle" && queued.length === 0 ? resolve() : schedule(poll, 5));
           poll();
         });
       }
@@ -131,8 +143,8 @@ const queryFor = (events) => ({
   readTitle: async () => ({ title: "target" }),
 });
 
-test("session_send wait:true waits for the queued message, not the previous answer", async () => {
-  const agent = fakeAgent({ startDelayMs: 120, workMs: 180 });
+test("session_send wait:true waits for the queued message, not the previous answer", async (t) => {
+  const agent = fakeAgent(t, { startDelayMs: 120, workMs: 180 });
   const tools = build({ agentFor: (id) => (id === "target" ? agent : undefined), query: queryFor(eventsFor([ANSWER_NEW])) });
 
   const result = await tools.session_send.execute(
@@ -146,9 +158,9 @@ test("session_send wait:true waits for the queued message, not the previous answ
   assert.equal(agent.inbox.nextTurn.length, 0, "our message must have been consumed");
 });
 
-test("session_send wait:true reports a timeout instead of a stale answer", async () => {
+test("session_send wait:true reports a timeout instead of a stale answer", async (t) => {
   // The target never gets to our message within the budget.
-  const agent = fakeAgent({ startDelayMs: 10_000, workMs: 10 });
+  const agent = fakeAgent(t, { startDelayMs: 10_000, workMs: 10 });
   const tools = build({ agentFor: (id) => (id === "target" ? agent : undefined), query: queryFor(eventsFor([])) });
 
   const result = await tools.session_send.execute(
@@ -161,8 +173,8 @@ test("session_send wait:true reports a timeout instead of a stale answer", async
   assert.ok(result.elapsedMs >= 300, `must consume the budget, got ${result.elapsedMs}ms`);
 });
 
-test("session_wait waits while the target is already running", async () => {
-  const agent = fakeAgent({ startDelayMs: 0, workMs: 150 });
+test("session_wait waits while the target is already running", async (t) => {
+  const agent = fakeAgent(t, { startDelayMs: 0, workMs: 150 });
   agent.followup({ id: "already", content: [] }); // pretend work is in flight
   const tools = build({ agentFor: (id) => (id === "target" ? agent : undefined), query: queryFor(eventsFor([ANSWER_NEW])) });
 
@@ -200,8 +212,8 @@ test("session_wait refuses to wait on its own session", async () => {
   );
 });
 
-test("waitBudgetMs: a nonsensical budget falls back to the default, absurd values are capped", async () => {
-  const agent = fakeAgent({ startDelayMs: 0, workMs: 0 });
+test("waitBudgetMs: a nonsensical budget falls back to the default, absurd values are capped", async (t) => {
+  const agent = fakeAgent(t, { startDelayMs: 0, workMs: 0 });
   agent.followup({ id: "x", content: [] });
   const tools = build({ agentFor: (id) => (id === "target" ? agent : undefined), query: queryFor(eventsFor([ANSWER_NEW])) });
 
