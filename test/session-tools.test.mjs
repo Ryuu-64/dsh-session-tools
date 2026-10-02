@@ -349,6 +349,7 @@ test("list_sessions marks archived sessions and reports state", async () => {
             { header: { id: "sub", cwd: "E:\\d", delegationDepth: 1 } },
           ],
           readTitle: async (id) => ({ title: `标题-${id}` }),
+          readSession: async () => ({ events: [] }),
         };
       }
       return undefined;
