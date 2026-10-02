@@ -58,7 +58,7 @@ for (const cut of ['turn/start', 'step/start', 'assistant/message', 'tool/call']
 }
 
 for (const cut of ['tool/result', 'step/end']) {
-  test(`genuine ${cut} immediately before crash remains activity`, { timeout: 15000 }, async t => {
+  test(`bare ${cut} is not an independent activity marker before or after recovery`, { timeout: 15000 }, async t => {
     const h = await receiptHost(t), list = await withQuery(h);
     let now = 100; t.mock.method(Date, 'now', () => now);
     const source = await h.create('source');
@@ -70,7 +70,8 @@ for (const cut of ['tool/result', 'step/end']) {
     now = 250; h.ctx.sessionTitle.rename(source.agent.session, 'title only');
     const title = source.agent.session.snapshotEvents().findLast(event => event.type === 'session/title');
     // Place a metadata change before an actual execution event at a later time.
-    // Only the following recovery suffix may be excluded from activity.
+    // Under the explicit activity definition, neither this bare completion
+    // nor a later recovery suffix is an independent sort marker.
     const tail = { ...prefix.pop(), seq: index + 1, time: 300 };
     const writer = await h.ctx.sessionPersistence.create({ ...source.agent.session.header, id: 'crash' });
     try {
@@ -78,10 +79,10 @@ for (const cut of ['tool/result', 'step/end']) {
       await writer.flush();
     } finally { await writer.close(); }
     now = 200; await h.create('newer');
-    assert.equal((await list({ limit: 1 })).sessions[0].sessionId, 'crash');
+    assert.equal((await list({ limit: 1 })).sessions[0].sessionId, 'newer');
     now = 1000;
     await h.ctx.agents.resume({ resumeSessionId: 'crash', agentOptions: { provider: 'fixture', model: 'scripted' } });
-    assert.equal((await list({ limit: 1 })).sessions[0].sessionId, 'crash', 'the real execution event cannot be removed with synthetic closers');
+    assert.equal((await list({ limit: 1 })).sessions[0].sessionId, 'newer', 'recovery cannot change the meaning of a bare completion');
   });
 }
 
@@ -99,3 +100,30 @@ test('a genuine user cancellation after a title change still advances activity',
   assert.equal(a.agent.session.snapshotEvents().findLast(event => event.type === 'turn/end').data.reason.kind, 'aborted');
   assert.equal((await list({ limit: 1 })).sessions[0].sessionId, 'A');
 });
+
+for (const kind of ['blocked', 'error']) {
+  test(`real ${kind} turn ending advances activity without model output`, { timeout: 15000 }, async t => {
+    const h = await receiptHost(t), list = await withQuery(h);
+    let now = 100; t.mock.method(Date, 'now', () => now);
+    const a = await h.create('A'), entered = Promise.withResolvers(), hold = gate();
+    t.after(hold.release);
+    h.ctx.on('agent/pre-step', async (p, next) => {
+      if (p.agent.id !== 'A') return next();
+      entered.resolve(); await hold.wait(p.signal);
+      if (kind === 'error') throw new Error('fixture pre-step failure');
+      return { kind: 'reject' };
+    });
+    a.agent.followup(user('task')); await entered.promise;
+    now = 200; await h.create('B');
+    now = 250; h.ctx.sessionTitle.rename(a.agent.session, 'title only');
+    assert.equal((await list({ limit: 1 })).sessions[0].sessionId, 'B');
+    now = 300; hold.release(); await a.agent.whenIdle();
+    const events = a.agent.session.snapshotEvents();
+    const ended = events.findLast(event => event.type === 'turn/end');
+    assert.equal(ended.data.reason.kind, kind); assert.equal(ended.time, 300);
+    assert.equal(events.some(event => ['assistant/message', 'assistant/attempt', 'step/start'].includes(event.type)), false,
+      'this actual terminal outcome is the only execution record later than turn/start');
+    assert.equal((await list({ limit: 1 })).sessions[0].sessionId, 'A');
+    assert.equal(h.model.requests.length, 0);
+  });
+}

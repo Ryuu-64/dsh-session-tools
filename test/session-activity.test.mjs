@@ -73,10 +73,38 @@ test('title-only and queue-removal changes do not count; no activity uses creati
   assert.deepEqual(h.stats.reads, ['B', 'A', 'empty', 'title-only', 'B']);
 });
 
-for (const type of ['user/message', 'assistant/message', 'assistant/attempt', 'turn/start', 'turn/end', 'step/start', 'step/end', 'tool/call', 'tool/result', 'agent/inbox/spliced']) {
+for (const type of ['user/message', 'assistant/message', 'assistant/attempt', 'turn/start', 'step/start', 'tool/call', 'agent/inbox/spliced']) {
   test(`conversation activity includes ${type}`, async () => {
     const h = fixture([record('B', 200), record('A', 100)], { A: [event(type, 300, { inserted: [{}] })] });
     assert.deepEqual(ids(await h.list(1)), ['A']);
+  });
+}
+
+for (const kind of ['completed', 'aborted', 'blocked', 'error', 'max-tokens']) {
+  test(`recorded turn ending ${kind} advances activity`, async () => {
+    const h = fixture([record('B', 200), record('A', 100)], {
+      A: [event('turn/start', 100), event('turn/end', 300, { turn: 1, reason: { kind } })],
+    });
+    assert.deepEqual(ids(await h.list(1)), ['A']);
+  });
+}
+
+for (const [type, data] of [
+  ['step/end', { turn: 1, step: 1 }],
+  ['tool/result', {}],
+  ['turn/end', { turn: 1, reason: { kind: 'interrupted' } }],
+  ['turn/end', { turn: 1, reason: { kind: 'unknown-extension' } }],
+  ['session/title', {}], ['session/end-seed', {}], ['request/header', {}],
+  ['model/selection', {}], ['permission/preset', {}],
+  ['agent/inbox/spliced', { target: 'next-turn', start: 0, removedCount: 1, inserted: [], outcome: 'canceled' }],
+]) {
+  test(`${type} ${data.reason?.kind ?? ''} alone does not advance activity`, async () => {
+    const h = fixture([record('B', 200), record('A', 100)], {
+      A: [event('user/message', 100), event(type, 900, data)],
+    });
+    assert.deepEqual(ids(await h.list(1)), ['B']);
+    h.logs.A.push(event('assistant/message', 1000)); h.revisions.set('A', 'v2');
+    assert.deepEqual(ids(await h.list(1)), ['A'], 'a later explicit output still advances the order');
   });
 }
 
