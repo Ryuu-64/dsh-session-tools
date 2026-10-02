@@ -6,12 +6,9 @@ import { mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import vm from 'node:vm';
-import React from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { SlotCore } from '@deepseek-ai/dsh-client-ui-slots';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { realHost } from './helpers/real-host.mjs';
+import { resultNode, sessionCard } from './helpers/session-card.mjs';
 
 const exec = promisify(execFile);
 const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
@@ -38,7 +35,8 @@ test('npm tarball loads through Loader and its client replays a durable creation
   const h = await realHost(t, { pluginPath: entryUrl });
   assert.equal(h.loader.unwrapExports(exported).apply, exported.apply);
   h.ctx.on('approval/request', () => 'allowed-once');
-  h.model.tool('session_create', { prompt: 'synthetic packed child', wait: true });
+  const title = 'Discuss session-11111111-1111-1111-1111-111111111111';
+  h.model.tool('session_create', { prompt: 'synthetic packed child', title, wait: true });
   h.model.text('packed child answer');
   h.model.text('packed caller answer');
   const caller = await h.createAgent('packed-caller');
@@ -55,47 +53,17 @@ test('npm tarball loads through Loader and its client replays a durable creation
   assert.equal(result.isError, false);
   assert.match(JSON.stringify(result.content), new RegExp(childId));
 
-  let client;
-  const globals = { window: { __ModuleLoader__: { load(definition) {
-    assert.equal(definition.id, pkg.name);
-    client = definition.factory(name => {
-      assert.equal(name, 'react');
-      return React;
-    });
-  } } } };
-  vm.runInNewContext(await readFile(join(root, 'package', pkg.exports['./client']), 'utf8'), globals);
-  assert.ok(client);
-  const slots = new SlotCore();
-  const removeOwner = slots.register({ name: 'root', children: { 'tool.call.toolview': { kind: 'keyed', scope: 'session' } } }, () => null);
-  t.after(removeOwner);
-  const opened = [];
-  // Minimal browser wiring around the actual rc.2 slot registry. The plugin
-  // uses no DOM APIs; React renders its real component below without a browser.
-  const disposers = [];
-  client.apply({
-    slots: {
-      inject(name, register) { assert.ok(slots.spec(name)); disposers.push(register()); },
-      register: (options, component) => slots.register(options, component),
-    },
-    sessions: { open: id => opened.push(id) },
-  });
-  t.after(() => disposers.forEach(dispose => dispose()));
-  const [registered] = slots.entriesOfSlot('tool.call.toolview');
-  assert.equal(registered.options.key, 'session_create');
-  // Same durable content blocks as a settled tool-call owner. Nothing relies
-  // on ephemeral result.value, which ToolRuntime does not persist.
-  const props = { block: { content: result.content }, slot: { injected: registered.inject() } };
-  const html = renderToStaticMarkup(React.createElement(registered.component, props));
+  assert.deepEqual(resultEvent.data.meta, { sessionId: childId, title });
+  const card = await sessionCard(t, { path: join(root, 'package', pkg.exports['./client']) });
+  const { html, button } = card.render(resultNode(resultEvent));
   assert.match(html, /已创建会话/);
   assert.match(html, new RegExp(childId));
   assert.doesNotMatch(html, /disabled=""/);
-  const tree = registered.component(props);
-  const button = React.Children.toArray(tree.props.children).find(child => child?.type === 'button');
   button.props.onClick();
-  assert.deepEqual(opened, [childId]);
-  const malformed = registered.component({ block: { content: [] }, slot: props.slot });
-  const disabled = React.Children.toArray(malformed.props.children).find(child => child?.type === 'button');
-  assert.equal(disabled.props.disabled, true);
-  disabled.props.onClick();
-  assert.deepEqual(opened, [childId], 'missing durable identity must not navigate');
+  button.props.onClick();
+  assert.deepEqual(card.opened, [childId, childId]);
+  const legacy = card.render({ ...resultNode(resultEvent), meta: undefined });
+  assert.equal(legacy.button, undefined);
+  assert.match(legacy.html, /Created session:/);
+  assert.deepEqual(card.opened, [childId, childId], 'legacy text alone must not navigate');
 });
