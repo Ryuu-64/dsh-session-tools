@@ -14,10 +14,13 @@
 | `workspacePath` | 可选 | 工作区的完整路径。填了，新会话就归到这个工作区下面；不填就是未分组。 |
 | `title` | 可选 | 创建时固定的会话标题。优先使用非空标题；省略或只含空白时，从首条任务截取简短标题。 |
 | `wait` | 可选 | 默认不等。只有一种情况需要等：你要在新建的那个会话跑完第一轮之后才继续。 |
-
 | `timeoutMs` | 可选 | `wait=true` 的等待预算（毫秒），默认 60000，最多 300000。 |
 
-做完返回新会话的名字、`sessionId` 和首条消息的 `messageId` 回执，你在左侧列表里就能看到它。首次消息投递前失败会清理未完成的创建；投递成功后，等待超时、取消或读取错误都不会删除或停止独立目标会话。
+做完返回新会话的名字、`sessionId` 和首条消息的 `messageId` 回执，你在左侧列表里就能看到它。投递成功后，等待超时、取消或读取错误都不会删除或停止独立目标会话。
+
+新建或首次消息投递失败时，插件会尝试清理：如果已经确认附加到工作区，就调用 `detachSession` 解除归属；如果已经取得 Agent 句柄，就调用 `dispose` 释放它。清理中的异常会被忽略，工具仍返回最初的错误。
+
+DSH `0.1.5-rc.2` 的 [`dispose`](https://github.com/deepseek-ai/deepseek-harness/blob/fb2c4b9e698e30edb738bca4cf0618587db7d203/packages/core/agent-loop/src/index.ts#L576-L617) 尝试停止 Agent、关闭持久化句柄并移除运行时注册；[关闭句柄](https://github.com/deepseek-ai/deepseek-harness/blob/fb2c4b9e698e30edb738bca4cf0618587db7d203/packages/session/session-persistence/src/handle.ts#L111-L116)负责完成待写入数据并释放写所有权，不是删除持久化记录。因此，失败后不能保证完全回滚或不留记录，也不表示每种失败都会留下记录。插件不会为此额外删除会话数据。
 
 缺省标题使用宿主公开的 `fallbackSessionTitle` 规范化和截取规则：清理控制字符、合并空白，再取前 5 个以空白分隔的词，最多 40 个 UTF-8 字节，不截断 Unicode 码点（中文同样按字节上限截取）。这两个上限来自官方 `dsh-base@0.1.5-rc.2` 标准配置。显式标题仍由宿主规范化，并受宿主的标题长度上限约束；若选定标题清理后没有可见内容，创建失败，不投递消息。
 
@@ -131,6 +134,8 @@
 
 ## 安装
 
+下面以 `desktop` profile（宿主配置）为例，将插件安装到该配置中：
+
 ```
 dsh plugin --profile desktop add @ryuu-64/dsh-session-tools
 ```
@@ -142,7 +147,18 @@ git clone https://github.com/Ryuu-64/dsh-session-tools.git
 dsh plugin --profile desktop add link:C:\path\to\dsh-session-tools
 ```
 
-装完重启 DSH 就能用，不需要其它设置。用 `link:` 方式装的，改完源码要重启应用才生效。
+装完后重启对应的 DSH 宿主。插件本身没有额外配置项，但宿主仍须满足下列服务条件。用 `link:` 方式装的，改完源码要重启应用才生效。
+
+## 宿主要求与验收范围
+
+本节以 DSH `0.1.5-rc.2` 为基线。能否加载取决于宿主提供的服务，不能只按“桌面版”或“无界面”判断。
+
+- **加载必需服务**：`tools`、`agents`、`sessionTitle`、`workspaceRegistry`、`agentDefaultModel`，见[插件的注入声明](lib/index.js)。即使不填 `workspacePath`，也不能省略 `workspaceRegistry`
+- **执行时还需要的能力**：新建和发送会话消息需要 `approval`、`sandboxPolicy` 的公开权限接口；缺失时停止。列出会话和查找已关闭的发送目标需要 `sessionQuery`；关闭会话的日志读取使用 `sessionPersistence`，或兼容宿主提供的 `sessionQuery.readSession`
+- **官方配置证据**：同版本的 [Web 组合加载 workspace](https://github.com/deepseek-ai/deepseek-harness/blob/fb2c4b9e698e30edb738bca4cf0618587db7d203/packages/bundle/web-app/cordis.patch.yml#L75-L76)，[Desktop 复用 Web 组合](https://github.com/deepseek-ai/deepseek-harness/blob/fb2c4b9e698e30edb738bca4cf0618587db7d203/apps/desktop-host/config/desktop.cordis.patch.yml#L1-L6)。workspace 并非桌面版独有。缺少该服务的 headless 配置无法加载本插件；不能据此宣布所有 headless 配置可用
+- **已运行的宿主回归**：使用仓库的[临时 Loader 配置](test/helpers/real-host.mjs)和[可重启 JSONL 配置](test/helpers/message-receipts-host.mjs)，加载真实 rc.2 宿主组件；最近活动排序测试另加载真实 `sessionQuery`。这些是测试专用配置，模型请求与人工审批答复使用脚本替代，不是完整的官方 Web 或 Desktop profile 验收
+
+服务出现在官方配置中，与本插件已在该完整配置中通过验收，是两件事。下方测试结果不覆盖完整 Web 浏览器或 Desktop UI 的端到端使用，也不构成其他宿主配置或 DSH 0.2 的兼容承诺。
 
 ## 使用限制
 
@@ -151,7 +167,6 @@ dsh plugin --profile desktop add link:C:\path\to\dsh-session-tools
 - **关掉的会话要有工作目录才能唤醒**。发消息时如果目标会话没开着，插件会把它重新打开；但如果那条会话没记录工作目录，就打不开、发不进去，会明确告诉你原因。
 - **重启期间收不到**。新建会话是立刻生效的；发出去的消息要等对方会话被打开处理，所以 DSH 得开着。等待也一样，DSH 关了就没法等。
 - **归属定了就不能改**。会话归到哪个工作区是记在账上的，建完之后没法在工作区之间搬。
-- **需要桌面版**。工作区归属靠桌面版才挂载的那个工作区服务，插件把它列为必需依赖，所以命令行无界面模式（headless）下这个插件不会加载。
 
 ## 开发与回归检查
 
@@ -174,5 +189,7 @@ npm run check
 - 真实宿主集成：临时配置经官方 Cordis Loader 加载真实工具运行时、AgentLoop、审批、工作区和 JSONL 持久化；仅模型请求和人工审批答复使用脚本边界，不发送真实网络请求或用户消息
 - 发布物回归：运行 `npm pack`，从解包后的入口经 Loader 加载插件；读取磁盘中的创建结果，用打包的客户端、官方 SlotCore 与真实 React 验证卡片文字和导航回调。这是无浏览器渲染测试，不宣称覆盖完整桌面 UI
 - 资源清理：测试拥有并关闭临时目录、Agent、读句柄和计时器；默认等待预算还通过独立子进程正常退出回归，不能依赖强制结束进程来通过
+
+首次消息投递前的取消回归用服务替身检查 `detachSession` / `dispose` 调用；真实宿主还覆盖了标题清理后没有可见内容、因而创建失败且未投递消息的路径。这些测试没有覆盖真实持久化写入或关闭失败的故障注入，不能证明所有失败都会完全回滚。
 
 目前没有把上述结果外推为 DSH 0.2 兼容承诺；升级宿主基线需要另行验收。
