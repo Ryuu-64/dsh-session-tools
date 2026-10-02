@@ -1,6 +1,6 @@
 {
   "name": "@ryuu-64/dsh-session-tools",
-  "version": "0.5.4",
+  "version": "0.6.0",
   "description": "Let the agent start a new chat session, send a message to another one, or wait for it to finish.",
   "type": "module",
   "license": "MIT",
