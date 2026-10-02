@@ -202,7 +202,7 @@ test('already cancelled cold wait performs no query or read', async () => {
 
 test('create observation failure never rolls back an already delivered session', async () => {
   const f = fixture();
-  f.target.whenIdle = async () => { throw new Error('observation failed'); };
+  f.target.session.snapshotEvents = () => { throw new Error('observation failed'); };
   await assert.rejects(f.tools.session_create.execute({ prompt: 'synthetic', wait: true }, f.exec), /observation failed/);
   assert.equal(f.delivered.length, 1);
   assert.equal(f.disposed(), 0);
