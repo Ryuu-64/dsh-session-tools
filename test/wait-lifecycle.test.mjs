@@ -20,7 +20,7 @@ function fixture({ cold = false, query: suppliedQuery, persistence } = {}) {
   apply({
     tools: { register: d => { tools[d.name] = d; } },
     agents: { get: () => cold ? undefined : target, create: async () => ({ agent: target, dispose: async () => { disposed++; } }) },
-    workspaceRegistry: { list: () => [] }, sessionTitle: { get: () => undefined },
+    workspaceRegistry: { list: () => [] }, sessionTitle: { get: () => undefined, rename() {} },
     agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
     get: name => ({ sessionQuery: query, sessionPersistence: persistence, sandboxPolicy: { resolve: () => ({ mode: 'danger-full-access' }) }, approval: { overrideOf: () => 'never', request: async () => 'allowed-once' } })[name],
   });

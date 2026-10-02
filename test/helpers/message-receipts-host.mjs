@@ -27,7 +27,7 @@ export function gate() {
 }
 
 /** Official rc.2 host with restartable, workspace-local JSONL storage. */
-export async function receiptHost(t) {
+export async function receiptHost(t, { titleConfig = { fallbackMaxWords: 8, fallbackMaxBytes: 100, maxTitleBytes: 100 } } = {}) {
   const root = await mkdtemp(join(process.cwd(), '.receipt-host-'));
   const contexts = [], gates = [];
   t.after(async () => {
@@ -43,7 +43,7 @@ export async function receiptHost(t) {
       ['dsh-tools'], ['dsh-llm'], ['dsh-session-persistence-jsonl', { root: join(root, 'sessions') }],
       ['dsh-storage'], ['dsh-storage-json', { root: join(root, 'storage') }],
       ['dsh-storage-domain', { backend: 'json' }], ['dsh-workspace'],
-      ['dsh-session-title', { fallbackMaxWords: 8, fallbackMaxBytes: 100, maxTitleBytes: 100 }],
+      ['dsh-session-title', titleConfig],
       ['dsh-agent-default-model', { provider: 'fixture', model: 'scripted' }],
       ['dsh-user-approval', { policy: 'ask' }], ['dsh-sandbox-policy'], ['dsh-agent-loop', { agents: [] }],
     ].map(([name, config]) => ({ name: `@deepseek-ai/${name}`, ...(config && { config }) }));
@@ -66,7 +66,7 @@ export async function receiptHost(t) {
       try { return { ...await reader.read(), header: reader.header, inheritedEventCount: reader.inheritedEventCount }; }
       finally { await reader.close(); }
     };
-    return { ctx, model, create, holdCaller, read, root, restart: async () => { await ctx.fiber.dispose(); return start(); } };
+    return { ctx, loader, model, create, holdCaller, read, root, restart: async () => { await ctx.fiber.dispose(); return start(); } };
   };
   return start();
 }
