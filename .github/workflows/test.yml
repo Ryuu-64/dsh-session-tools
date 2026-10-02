@@ -8,16 +8,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     strategy:
+      fail-fast: false
       matrix:
-        node: [20, 22, 24]
+        node: ['22.19.0', '24']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      # The plugin has no dependencies of its own; they come from the DSH
-      # install as peerDependencies, which the tests stub rather than load.
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm test
-      - run: node --check lib/index.js
-      - run: node --check lib/client.js
+      - run: node --check lib/index.js && node --check lib/client.js
