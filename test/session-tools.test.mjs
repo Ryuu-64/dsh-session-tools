@@ -75,7 +75,12 @@ function fakeAgent(t, { startDelayMs = 0, workMs = 0, faithfulWhenIdle = true } 
     timers.clear();
   });
   const queued = [];
-  const replies = [];
+  const events = [];
+  const append = (type, data) => events.push({ seq: events.length, type, data });
+  append('turn/start', { turn: 1 });
+  append('assistant/message', { turn: 1, step: 1, message: { content: [{ type: 'text', text: ANSWER_OLD }] }, stream: [] });
+  append('turn/end', { turn: 1, reason: { kind: 'completed' } });
+  let turn = 1;
   let phase = "idle";
   let activityDone = Promise.resolve();
 
@@ -85,10 +90,15 @@ function fakeAgent(t, { startDelayMs = 0, workMs = 0, faithfulWhenIdle = true } 
     phase = "running";
     // The driver picks the message up in a microtask, like `kick()` does.
     queueMicrotask(() => {
-      queued.splice(0, queued.length);
+      turn++;
+      append('turn/start', { turn });
+      const claimed = queued.splice(0, queued.length);
+      append('agent/inbox/spliced', { target: 'next-turn', start: 0, removedCount: claimed.length, inserted: [] });
+      for (const message of claimed) append('user/message', message);
       schedule(() => {
+        append('assistant/message', { turn, step: 1, message: { content: [{ type: 'text', text: ANSWER_NEW }] }, stream: [] });
+        append('turn/end', { turn, reason: { kind: 'completed' } });
         phase = "idle";
-        replies.push(ANSWER_NEW);
         driver.resolve();
       }, workMs);
     });
@@ -96,7 +106,7 @@ function fakeAgent(t, { startDelayMs = 0, workMs = 0, faithfulWhenIdle = true } 
 
   const agent = {
     id: "target",
-    session: { header: { cwd: "E:\\x", id: "target" }, snapshotEvents: () => eventsFor(replies) },
+    session: { header: { cwd: "E:\\x", id: "target" }, snapshotEvents: () => events.slice() },
     get status() {
       return phase;
     },
@@ -106,6 +116,7 @@ function fakeAgent(t, { startDelayMs = 0, workMs = 0, faithfulWhenIdle = true } 
       },
     },
     followup(message) {
+      append('agent/inbox/spliced', { target: 'next-turn', start: queued.length, inserted: [message] });
       queued.push(message);
       if (startDelayMs > 0) schedule(startWork, startDelayMs);
       else startWork();
