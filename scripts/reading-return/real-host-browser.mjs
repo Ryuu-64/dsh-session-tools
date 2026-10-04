@@ -159,7 +159,7 @@ try {
       if (type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') return;
       const button = event.target?.closest?.('button');
       if (!button || !button.textContent.includes('RETURN_')) return;
-      const record = { type, trusted: event.isTrusted, label: button.textContent, disabled: button.disabled, key: event.key };
+      const record = { type, trusted: event.isTrusted, label: button.textContent, source: button.dataset.sessionToolsSource, disabled: button.disabled, key: event.key };
       events.push(record); if (events.length > 30) events.shift();
       queueMicrotask(() => { record.defaultPrevented = event.defaultPrevented; });
     }, true);
@@ -192,7 +192,7 @@ try {
         sessionId: x.dataset.conversationSession, connected: x.isConnected,
         main: !!x.closest('[data-slot="main"]'), chat: !!x.querySelector('[data-chat-flow]'),
       })),
-      returnControls: [...document.querySelectorAll('[data-session-tools-return]')].map(x => ({ text: x.textContent, main: !!x.closest('[data-slot="main"]') })),
+      returnControls: [...document.querySelectorAll('[data-session-tools-return]')].map(x => ({ text: x.textContent, main: !!x.closest('[data-slot="main"]'), phase: x.dataset.returnPhase, reason: x.dataset.returnReason, message: x.dataset.returnMessage })),
       activeElement: { tag: document.activeElement?.tagName, text: document.activeElement?.textContent?.slice(0,100) },
     })).catch(() => null);
     fs.writeFileSync(path.join(output, 'failure-dom.txt'), redact(await page.locator('body').innerText().catch(() => 'unavailable')));
