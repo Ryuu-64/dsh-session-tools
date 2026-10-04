@@ -12,6 +12,13 @@ for (const section of ['devDependencies', 'overrides']) {
     else if (name.startsWith('@deepseek-ai/dsh-')) pkg[section][name] = version;
   }
 }
+// These appeared in the 0.1.6 family with permissive prerelease peers.
+// Keep alpha.1 isolated from alpha.2; otherwise the matrix is not that SDK.
+if (version.startsWith('0.1.6-')) {
+  for (const name of ['attachment', 'commands', 'compaction']) {
+    pkg.overrides[`@deepseek-ai/dsh-${name}`] = version;
+  }
+}
 // Read the host's matching published peer constraints via npm resolution.
 // 0.1.5/0.1.6 ship against this common Cordis / Loader family.
 pkg.devDependencies['@deepseek-ai/cordis'] = '4.0.2';
