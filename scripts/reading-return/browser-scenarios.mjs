@@ -55,14 +55,16 @@ async function openFromSidebar(page, label) {
   await page.locator(`[data-conversation-session="${ids[label]}"]`).waitFor();
   await page.getByText(`RETURN_${label}_USER_80`, { exact: false }).last().waitFor();
 }
-async function openCard(page, from, to) {
+async function openCard(page, from, to, turn) {
   const scope = page.locator(`[data-conversation-session="${ids[from]}"]`);
-  const card = scope.getByRole('button', { name: `RETURN_${to}`, exact: true }).last();
+  const seat = turn === undefined ? scope : scope.locator(`[data-chat-node-key][data-chat-turn="${turn}"]`);
+  const card = seat.getByRole('button', { name: `RETURN_${to}`, exact: true }).last();
   await card.scrollIntoViewIfNeeded();
   await card.focus();
   // The reading position is measured after the browser brought the real card
   // into view, immediately before the trusted keyboard activation.
   const captured = await scope.evaluate(root => {
+    window.__readingReturnSourceFlow = root.querySelector('[data-chat-flow]');
     const scroll = root.querySelector('[data-conversation-scroll]'), flow = root.querySelector('[data-chat-flow]');
     const top = scroll.getBoundingClientRect().top + 24;
     const rows = [...flow.querySelectorAll('[data-chat-anchor-key][data-chat-node-key]:not([data-chat-flow-kind="turn-process"])')];
@@ -92,7 +94,8 @@ export async function exercise(page, browser, url, output) {
   await page.screenshot({ path: path.join(output, 'source-restored.png') });
   await openCard(page, 'A', 'B'); await openCard(page, 'B', 'C');
   assert.equal(await page.getByRole('button', { name: '返回 RETURN_A 的原位置', exact: true }).count(), 0);
-  await page.getByRole('button', { name: '返回 RETURN_B 的原位置', exact: true }).click();
+  await page.getByRole('button', { name: '返回 RETURN_B 的原位置', exact: true }).focus();
+  await page.keyboard.press('Enter');
   await page.getByRole('button', { name: '返回 RETURN_B 的原位置', exact: true }).waitFor({ state: 'hidden', timeout: 20000 });
   result.oneStep = 'passed';
   await openFromSidebar(page, 'A'); await openCard(page, 'A', 'B');
@@ -104,5 +107,52 @@ export async function exercise(page, browser, url, output) {
   await page.getByRole('button', { name: 'Search sessions' }).waitFor({ timeout: 30000 });
   assert.equal(await page.getByRole('button', { name: /返回 RETURN_/ }).count(), 0);
   result.refreshInvalidates = 'passed';
+
+  // Real host paging, followed by unloading and reloading that source Chat.
+  await openFromSidebar(page, 'A');
+  const history = page.locator(`[data-conversation-session="${ids.A}"]`);
+  let loads = 0;
+  while (await history.getByText('RETURN_A_USER_20', { exact: false }).count() === 0) {
+    const older = history.getByRole('button', { name: 'Load earlier', exact: true });
+    assert.equal(await older.count(), 1, 'host must still offer history before turn 20');
+    const before = await history.locator('[data-chat-node-key]').count();
+    await older.click(); loads++;
+    await page.waitForFunction(({ id, before }) => {
+      const root = document.querySelector(`[data-conversation-session="${id}"]`);
+      return root && root.querySelectorAll('[data-chat-node-key]').length > before;
+    }, { id: ids.A, before }, { timeout: 20000 });
+  }
+  const olderCapture = await openCard(page, 'A', 'B', 20);
+  const olderBack = page.getByRole('button', { name: '返回 RETURN_A 的原位置', exact: true });
+  await olderBack.focus(); await page.keyboard.press('Space');
+  await olderBack.waitFor({ state: 'hidden', timeout: 20000 });
+  const olderLanding = await page.locator(`[data-conversation-session="${ids.A}"]`).evaluate((root, key) => {
+    const row = [...root.querySelectorAll('[data-chat-anchor-key]')].find(x => x.dataset.chatAnchorKey === key);
+    return { top: row ? row.getBoundingClientRect().top - root.querySelector('[data-conversation-scroll]').getBoundingClientRect().top : null,
+      remounted: root.querySelector('[data-chat-flow]') !== window.__readingReturnSourceFlow };
+  }, olderCapture.key);
+  assert.ok(olderLanding.remounted, 'the real source Chat must have a fresh paging/scroll owner');
+  assert.ok(olderLanding.top !== null && Math.abs(olderLanding.top - olderCapture.top) < 2,
+    `paged source offset: ${JSON.stringify({ olderCapture, olderLanding })}`);
+  result.loadedHistory = { loads, captured: olderCapture, landing: olderLanding, returnKey: 'Space' };
+  await page.screenshot({ path: path.join(output, 'source-history-restored.png') });
+
+  // Two actual pages share the same origin/profile, but own separate UI roots.
+  await openCard(page, 'A', 'B');
+  const other = await page.context().newPage();
+  try {
+    await other.goto(url, { waitUntil: 'load' });
+    await openFromSidebar(other, 'C');
+    const otherRoot = other.locator(`[data-conversation-session="${ids.C}"]`);
+    await otherRoot.getByText('RETURN_C_USER_78', { exact: false }).scrollIntoViewIfNeeded();
+    await other.waitForTimeout(600);
+    const otherTop = await otherRoot.locator('[data-conversation-scroll]').evaluate(x => x.scrollTop);
+    assert.equal(await other.getByRole('button', { name: /返回 RETURN_/ }).count(), 0);
+    await page.getByRole('button', { name: '返回 RETURN_A 的原位置', exact: true }).click();
+    await page.getByRole('button', { name: '返回 RETURN_A 的原位置', exact: true }).waitFor({ state: 'hidden', timeout: 20000 });
+    assert.equal(await otherRoot.count(), 1);
+    assert.equal(await otherRoot.locator('[data-conversation-scroll]').evaluate(x => x.scrollTop), otherTop);
+    result.twoWindows = { sharedBrowserContext: true, unaffectedSession: ids.C, unaffectedScrollTop: otherTop };
+  } finally { await other.close(); }
   return result;
 }

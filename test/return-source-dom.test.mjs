@@ -16,7 +16,7 @@ function harness(t) {
   const root = window.document.querySelector('[data-conversation-content]');
   const scroll = root.firstElementChild, flow = root.querySelector('[data-chat-flow]');
   scroll.getBoundingClientRect = () => ({ top: 100, bottom: 600, width: 900, height: 500 });
-  const nodes = new Map(), retained = new Map(), delayed = new Map();
+  const nodes = new Map(), retained = new Map(), delayed = new Map(), activeTargets = new Set(["A"]);
   const opened = [], loaded = [];
   let sourceText = "Repeated paragraph.", replaceContent = false;
   let nav = new AbortController();
@@ -49,7 +49,7 @@ function harness(t) {
         return { ready: delayed.get(id) ?? Promise.resolve(bindings.get(id)), release() { if (!released) { released = true; retained.set(id, retained.get(id)-1); } } };
       },
     },
-    uiConversation: { binding: binding => ({ target: () => ({ getSnapshot: () => ({ nodes: nodes.get(binding.sessionId) ?? new Map() }) }) }) },
+    uiConversation: { binding: binding => ({ activate: target => { if (target === 'chat') activeTargets.add(binding.sessionId); }, target: () => ({ getSnapshot: () => activeTargets.has(binding.sessionId) ? { nodes: nodes.get(binding.sessionId) ?? new Map() } : undefined }) }) },
     layout: {
       beginNavigation() { nav.abort(); nav = new AbortController(); return nav.signal; },
       panelInfo: { subscribe: () => () => {}, getSnapshot: () => ({ activePanelId: null }) },
@@ -57,6 +57,7 @@ function harness(t) {
   };
   const controller = client.createReadingReturnAdapter(ctx, id => {
     ctx.layout.beginNavigation();
+    activeTargets.delete(root.dataset.conversationSession); activeTargets.add(id);
     opened.push(id); root.dataset.conversationSession = id;
     flow.replaceChildren();
     if (id === 'A') { row('A-1', 80, sourceText); row('A-2', 400); }
