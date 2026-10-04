@@ -131,7 +131,7 @@ let serverLog = '';
 const server = spawn(process.execPath, [bin, '--profile', 'web', '--no-open', '--host', '127.0.0.1', '--port', '4195'], { cwd: workspace, env });
 server.stdout.on('data', data => serverLog += data);
 server.stderr.on('data', data => serverLog += data);
-let browser, page;
+let browser, context, page;
 const errors = [], consoleErrors = [];
 const report = { version, artifactSha256, bootstrap: 'pending', readingReturn: 'not-run', seeds: seeded };
 try {
@@ -152,7 +152,8 @@ try {
   }
   assert.ok(ready, 'host did not become HTTP-ready');
   browser = await chromium.launch({ headless: true });
-  page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'en-US' });
+  context = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'en-US' });
+  page = await context.newPage();
   await page.addInitScript(() => {
     const events = []; window.__readingReturnInput = events;
     for (const type of ['click', 'keydown']) window.addEventListener(type, event => {
@@ -199,7 +200,8 @@ try {
   }
   process.exitCode = 1;
 } finally {
-  await browser?.close(); server.kill('SIGTERM');
+  try { await context?.close(); } finally { await browser?.close(); }
+  server.kill('SIGTERM');
   await new Promise(resolve => setTimeout(resolve, 500));
   if (server.exitCode === null) server.kill('SIGKILL');
   fs.writeFileSync(path.join(output, 'server.log'), redact(serverLog));
