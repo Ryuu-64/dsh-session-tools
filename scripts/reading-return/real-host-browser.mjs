@@ -132,6 +132,7 @@ const server = spawn(process.execPath, [bin, '--profile', 'web', '--no-open', '-
 server.stdout.on('data', data => serverLog += data);
 server.stderr.on('data', data => serverLog += data);
 let browser, page;
+const errors = [], consoleErrors = [];
 const report = { version, artifactSha256, bootstrap: 'pending', readingReturn: 'not-run', seeds: seeded };
 try {
   let url;
@@ -152,8 +153,8 @@ try {
   assert.ok(ready, 'host did not become HTTP-ready');
   browser = await chromium.launch({ headless: true });
   page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'en-US' });
-  const errors = [];
   page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   await page.goto(url, { waitUntil: 'load' });
   const notice = page.getByText(/^(Internal Testing Notice|Preview Notice)$/);
   await notice.waitFor({ state: 'visible', timeout: 30000 });
@@ -167,9 +168,21 @@ try {
   report.readingReturn = 'passed';
 } catch (error) {
   report.error = redact(error);
+  report.browserErrors = errors.map(redact);
+  report.consoleErrors = consoleErrors.map(redact);
   report.readingReturn = 'failed';
   if (page) {
     await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {});
+    report.domScope = await page.evaluate(() => ({
+      slots: [...new Set([...document.querySelectorAll('[data-slot]')].map(x => x.dataset.slot))],
+      mainCount: document.querySelectorAll('[data-slot="main"]').length,
+      contents: [...document.querySelectorAll('[data-conversation-content]')].map(x => ({
+        sessionId: x.dataset.conversationSession, connected: x.isConnected,
+        main: !!x.closest('[data-slot="main"]'), chat: !!x.querySelector('[data-chat-flow]'),
+      })),
+      returnControls: [...document.querySelectorAll('[data-session-tools-return]')].map(x => ({ text: x.textContent, main: !!x.closest('[data-slot="main"]') })),
+      activeElement: { tag: document.activeElement?.tagName, text: document.activeElement?.textContent?.slice(0,100) },
+    })).catch(() => null);
     fs.writeFileSync(path.join(output, 'failure-dom.txt'), redact(await page.locator('body').innerText().catch(() => 'unavailable')));
   }
   process.exitCode = 1;
