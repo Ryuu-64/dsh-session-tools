@@ -51,7 +51,7 @@ for (const { label, expected, ...args } of cases) {
     assert.ok(title[0].seq < message.seq, 'title is committed before the first message is admitted');
     assert.deepEqual(title[0].data, { title: expected, source: { kind: 'user' }, messageSeqs: [] });
     assert.equal(message.data.id, created.messageId);
-    assert.deepEqual(message.data.source, { kind: 'plugin', plugin: 'tool-session' });
+    assert.deepEqual(message.data.source, { kind: 'tool-session', form: 'relay' });
     assert.equal(message.data.content[0].text, args.prompt.trim(), 'title cleanup must not rewrite the task');
     const create = h.ctx.tools.get('session_create');
     assert.deepEqual(create.output.presentationMeta(args, created), { sessionId: created.sessionId, title: expected });

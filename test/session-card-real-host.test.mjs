@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { realHost } from './helpers/real-host.mjs';
-import { resultNode, sessionCard } from './helpers/session-card.mjs';
+import { resultNode, sessionCard, toolResult } from './helpers/session-card.mjs';
 
 const first = 'session-11111111-1111-1111-1111-111111111111';
 const second = 'session-33333333-3333-3333-3333-333333333333';
@@ -15,7 +15,7 @@ async function createAndReload(h, id, title) {
   caller.agent.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'create fixture' }] }));
   await caller.agent.whenIdle();
   const live = caller.agent.session.snapshotEvents().find(e => e.type === 'tool/result');
-  assert.equal(live.data.message.content[0].isError, false);
+  assert.notEqual(toolResult(live).isError, true);
   const sessionId = live.data.meta.sessionId;
   assert.ok(h.ctx.agents.get(sessionId), 'metadata names the actual created Agent');
   assert.equal(live.data.meta.title, h.ctx.sessionTitle.get(h.ctx.agents.get(sessionId).session).title);
@@ -28,8 +28,8 @@ async function createAndReload(h, id, title) {
   finally { await reader.close(); }
   assert.deepEqual(replay.data.meta, live.data.meta);
   assert.equal('value' in replay.data, false, 'canonical values are not the replay contract');
-  assert.equal('meta' in replay.data.message.content[0], false, 'metadata belongs to the event, not content');
-  assert.match(JSON.stringify(replay.data.message.content[0].content), /Created session:/);
+  assert.equal('meta' in toolResult(replay), false, 'metadata belongs to the event, not content');
+  assert.match(JSON.stringify(toolResult(replay).content), /Created session:/);
   return { live, replay, sessionId };
 }
 
@@ -74,7 +74,7 @@ test('a durable real-host denial retains its error without a success card', { ti
   try { event = (await reader.read()).events.find(e => e.type === 'tool/result'); }
   finally { await reader.close(); }
   assert.equal(event.data.meta, undefined);
-  assert.equal(event.data.message.content[0].isError, true);
+  assert.equal(toolResult(event).isError, true);
   const card = await sessionCard(t);
   const view = card.render(resultNode(event));
   assert.equal(view.button, undefined);
