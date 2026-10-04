@@ -1,0 +1,33 @@
+name: Reading return RC2
+on:
+  push:
+    branches: [feat/return-source-reading]
+  pull_request:
+    paths: ['lib/client.js', 'scripts/reading-return/**', '.github/workflows/reading-return.yml']
+permissions:
+  contents: read
+jobs:
+  real-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm install --global --ignore-scripts pnpm@11.19.0
+      - run: npx playwright install chromium --only-shell
+      - run: |
+          mkdir -p evidence/artifact
+          npm pack --ignore-scripts --pack-destination evidence/artifact
+          node scripts/reading-return/real-host-browser.mjs 0.2.0-rc.2 evidence/artifact/ryuu-64-dsh-session-tools-0.6.0.tgz evidence/browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reading-return-rc2
+          path: evidence/
+          retention-days: 7
