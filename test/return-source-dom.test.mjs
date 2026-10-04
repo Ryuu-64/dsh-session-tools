@@ -168,3 +168,13 @@ test('DOM contract unmounting the whole reading occurrence clears its return poi
   assert.equal(h.controller.getSnapshot().record, null);
   assert.equal(h.controller.root(), null);
 });
+
+test('DOM contract deleted source fails before navigation even if its old rows remain cached', async t => {
+  const h = harness(t); await h.controller.open('B', { sessionId: 'A', element: h.button });
+  h.bindings.get('A').session.getSnapshot = () => ({ openState: 'open', removed: true });
+  await h.controller.back();
+  assert.deepEqual(h.opened, ['B']);
+  assert.equal(h.controller.getSnapshot().phase, 'error');
+  assert.match(h.controller.getSnapshot().message, /已删除/);
+  assert.equal(h.retained.get('A'), 0);
+});
