@@ -160,3 +160,11 @@ test('DOM contract actual tab identity cancels even when Chat returns before his
   resolve(h.bindings.get('A')); await pending;
   assert.deepEqual(h.opened, ['B']); assert.equal(h.controller.getSnapshot().record, null);
 });
+
+test('DOM contract unmounting the whole reading occurrence clears its return point', async t => {
+  const h = harness(t); await h.controller.open('B', { sessionId: 'A', element: h.button });
+  h.root.closest('[data-slot="main"]').remove();
+  await new Promise(r => setImmediate(r));
+  assert.equal(h.controller.getSnapshot().record, null);
+  assert.equal(h.controller.root(), null);
+});
