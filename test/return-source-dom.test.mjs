@@ -8,7 +8,7 @@ import { JSDOM } from 'jsdom';
 import React from 'react';
 
 function harness(t) {
-  const dom = new JSDOM('<div data-slot="main"><header></header><div data-conversation-content data-conversation-session="A"><div data-conversation-scroll><div data-slot="conversation.view"><div data-chat-flow></div></div></div></div></div>', { pretendToBeVisual: true });
+  const dom = new JSDOM('<div data-slot="main"><div data-slot="main.conversation"><header></header><div data-conversation-content data-conversation-session="A"><div data-conversation-scroll><div data-slot="conversation.view"><div data-chat-flow></div></div></div></div></div></div>', { pretendToBeVisual: true });
   const { window } = dom;
   let client;
   window.__ModuleLoader__ = { load: ({ factory }) => { client = factory(() => React); } };
@@ -18,7 +18,7 @@ function harness(t) {
   scroll.getBoundingClientRect = () => ({ top: 100, bottom: 600, width: 900, height: 500 });
   const nodes = new Map(), retained = new Map(), delayed = new Map();
   const opened = [], loaded = [];
-  let sourceText = "Repeated paragraph.";
+  let sourceText = "Repeated paragraph.", replaceContent = false;
   let nav = new AbortController();
   const rect = (top, height = 100) => ({ top: top - scroll.scrollTop, bottom: top + height - scroll.scrollTop, width: 900, height });
   function row(key, top, text = 'Repeated paragraph.', part = '') {
@@ -61,9 +61,10 @@ function harness(t) {
     flow.replaceChildren();
     if (id === 'A') { row('A-1', 80, sourceText); row('A-2', 400); }
     else row(`${id}-1`, 120);
+    if (replaceContent) root.replaceWith(root.cloneNode(true));
   }, window);
   t.after(() => { controller.dispose(); window.close(); });
-  return { controller, ctx, root, scroll, flow, button, opened, retained, nodes, delayed, bindings, row, window, loaded, rewrite: text => { sourceText = text; } };
+  return { controller, ctx, root, scroll, flow, button, opened, retained, nodes, delayed, bindings, row, window, loaded, rewrite: text => { sourceText = text; }, replaceContent: () => { replaceContent = true; } };
 }
 
 test('DOM contract captures the clicked occurrence, stable row and paragraph offset', async t => {
@@ -177,4 +178,13 @@ test('DOM contract deleted source fails before navigation even if its old rows r
   assert.equal(h.controller.getSnapshot().phase, 'error');
   assert.match(h.controller.getSnapshot().message, /已删除/);
   assert.equal(h.retained.get('A'), 0);
+});
+
+test('DOM contract accepts expected session content replacement inside the exact same main occurrence', async t => {
+  const h = harness(t); h.replaceContent();
+  await h.controller.open('B', { sessionId: 'A', element: h.button });
+  assert.equal(h.controller.getSnapshot().record?.sessionId, 'A');
+  assert.notEqual(h.controller.root(), h.root);
+  assert.equal(h.controller.root().dataset.conversationSession, 'B');
+  assert.equal(h.controller.root().closest('[data-slot="main"]'), h.window.document.querySelector('[data-slot="main"]'));
 });

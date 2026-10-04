@@ -78,3 +78,13 @@ test('repeat return clicks share one in-flight operation and two roots stay isol
   assert.deepEqual(h.opened, ['B', 'A']);
   assert.equal(other.controller.getSnapshot().record.sessionId, 'A');
 });
+
+test('opening the current session interrupts a pending return without replacing its saved point', async () => {
+  const h = harness(); await h.controller.open('B');
+  const record = h.controller.getSnapshot().record;
+  let finish; h.waits.set('A', new Promise(resolve => { finish = resolve; }));
+  const pending = h.controller.back(); await h.controller.open('B');
+  finish(); await pending;
+  assert.deepEqual(h.opened, ['B']);
+  assert.equal(h.controller.getSnapshot().record, record);
+});
