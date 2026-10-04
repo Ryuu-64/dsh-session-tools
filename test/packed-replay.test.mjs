@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { realHost } from './helpers/real-host.mjs';
-import { resultNode, sessionCard } from './helpers/session-card.mjs';
+import { resultNode, sessionCard, toolResult } from './helpers/session-card.mjs';
 
 const exec = promisify(execFile);
 const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
@@ -49,8 +49,8 @@ test('npm tarball loads through Loader and its client replays a durable creation
   try { events = (await reader.read()).events; } finally { await reader.close(); }
   const resultEvent = events.find(event => event.type === 'tool/result');
   assert.ok(resultEvent, 'read the result from JSONL, not an in-memory tool return');
-  const result = resultEvent.data.message.content.find(block => block.type === 'tool-result');
-  assert.equal(result.isError, false);
+  const result = toolResult(resultEvent);
+  assert.notEqual(result.isError, true);
   assert.match(JSON.stringify(result.content), new RegExp(childId));
 
   assert.deepEqual(resultEvent.data.meta, { sessionId: childId, title });

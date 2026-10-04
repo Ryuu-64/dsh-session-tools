@@ -322,7 +322,7 @@ test("session_send queues a message whose id the wait can match", async () => {
   assert.equal(typeof queued.id, "string");
   assert.ok(queued.id.length > 0, "the queued message must carry an id");
   assert.equal(queued.role, "user");
-  assert.equal(queued.source?.kind, "plugin", "the message must be marked as plugin-sourced");
+  assert.equal(queued.source?.kind, "tool-session", "the message must identify its producer, not impersonate the user");
   // The message never leaves the inbox, so the wait must time out rather than
   // claim completion.
   assert.equal(result.completed, false);

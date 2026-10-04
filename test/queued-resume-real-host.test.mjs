@@ -77,7 +77,7 @@ test('real rc.2 resume: cancelling a queued sender leaves the preceding preset m
   assert.match(bResult.error.message, /aborted/);
   assert.equal(mounts, 1);
   assert.deepEqual(target.session.snapshotEvents()
-    .filter(event => event.type === 'user/message' && event.data.source?.plugin === 'tool-session')
+    .filter(event => event.type === 'user/message' && event.data.source?.kind === 'tool-session')
     .map(event => event.data.content[0].text), ['A', 'C']);
   assert.equal(getEventListeners(cController.signal, 'abort').length, 0);
 });

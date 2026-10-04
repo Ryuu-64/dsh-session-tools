@@ -1,3 +1,4 @@
+import { toolResult } from './helpers/session-card.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -117,7 +118,7 @@ test('real ToolRuntime persists send receipt identity in JSONL presentation meta
   const caller = await h.create('caller'); caller.agent.followup(user('exercise send'));
   await caller.agent.whenIdle(); await target.agent.whenIdle(); await h.ctx.sessionPersistence.flush();
   const stored = await h.read('caller'); const result = stored.events.find(e => e.type === 'tool/result');
-  assert.equal(result.data.message.content[0].isError, false);
+  assert.notEqual(toolResult(result).isError, true);
   assert.equal(result.data.meta.sessionId, 'target'); assert.ok(result.data.meta.messageId);
   assert.match(JSON.stringify(result.data.message.content), new RegExp(result.data.meta.messageId));
   assert.equal((await wait(h, result.data.meta)).output, 'answer A');

@@ -49,10 +49,10 @@ test('real session_send delivers only to the target and persists plugin message 
  caller.agent.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'exercise send' }] }));
  await caller.agent.whenIdle();
  await target.agent.whenIdle();
- const delivered = target.agent.session.snapshotEvents().filter(e => e.type === 'user/message' && e.data.source.plugin === 'tool-session');
+ const delivered = target.agent.session.snapshotEvents().filter(e => e.type === 'user/message' && e.data.source.kind === 'tool-session');
  assert.equal(delivered.length, 1);
  assert.equal(delivered[0].data.content[0].text, 'synthetic routed message');
- assert.deepEqual(delivered[0].data.source, { kind: 'plugin', plugin: 'tool-session' });
+ assert.deepEqual(delivered[0].data.source, { kind: 'tool-session', form: 'relay' });
  assert.notEqual(delivered[0].data.id, caller.agent.session.snapshotEvents().find(e => e.type === 'user/message').data.id);
  assert.match(JSON.stringify(h.model.requests.at(-1).messages), /target answer/);
  await target.dispose();
