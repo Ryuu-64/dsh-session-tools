@@ -153,6 +153,17 @@ try {
   assert.ok(ready, 'host did not become HTTP-ready');
   browser = await chromium.launch({ headless: true });
   page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'en-US' });
+  await page.addInitScript(() => {
+    const events = []; window.__readingReturnInput = events;
+    for (const type of ['click', 'keydown']) window.addEventListener(type, event => {
+      if (type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') return;
+      const button = event.target?.closest?.('button');
+      if (!button || !button.textContent.includes('RETURN_')) return;
+      const record = { type, trusted: event.isTrusted, label: button.textContent, disabled: button.disabled, key: event.key };
+      events.push(record); if (events.length > 30) events.shift();
+      queueMicrotask(() => { record.defaultPrevented = event.defaultPrevented; });
+    }, true);
+  });
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   await page.goto(url, { waitUntil: 'load' });
@@ -174,6 +185,7 @@ try {
   if (page) {
     await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {});
     report.domScope = await page.evaluate(() => ({
+      input: window.__readingReturnInput,
       slots: [...new Set([...document.querySelectorAll('[data-slot]')].map(x => x.dataset.slot))],
       mainCount: document.querySelectorAll('[data-slot="main"]').length,
       contents: [...document.querySelectorAll('[data-conversation-content]')].map(x => ({

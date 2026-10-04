@@ -130,3 +130,33 @@ test('DOM contract user scroll intent cancels only this restoration and keeps a 
   assert.deepEqual(h.opened, ['B']); assert.equal(h.retained.get('A'), 0);
   assert.ok(h.controller.getSnapshot().record);
 });
+
+test('DOM contract switching to another view during preparation prevents late navigation and focus', async t => {
+  const h = harness(t); await h.controller.open('B', { sessionId: 'A', element: h.button });
+  let resolve; h.delayed.set('A', new Promise(r => { resolve = r; }));
+  const pending = h.controller.back();
+  const outlet = h.root.querySelector('[data-slot="conversation.view"]');
+  outlet.replaceChildren(h.window.document.createElement('section'));
+  // MutationObserver delivers the actual view change before history finishes.
+  await new Promise(r => setImmediate(r));
+  resolve(h.bindings.get('A')); await pending;
+  assert.deepEqual(h.opened, ['B']);
+  assert.equal(h.controller.getSnapshot().record, null);
+  assert.equal(h.retained.get('A'), 0);
+  assert.equal(h.window.document.activeElement, h.window.document.body);
+});
+
+test('DOM contract actual tab identity cancels even when Chat returns before history does', async t => {
+  const h = harness(t);
+  const tabs = h.window.document.createElement('div'); tabs.dataset.conversationTabs = '';
+  tabs.innerHTML = '<button role="tab" aria-selected="true">Chat</button><button role="tab" aria-selected="false">Trajectory</button>';
+  h.root.parentElement.querySelector('header').append(tabs);
+  await h.controller.open('B', { sessionId: 'A', element: h.button });
+  let resolve; h.delayed.set('A', new Promise(r => { resolve = r; }));
+  const pending = h.controller.back();
+  tabs.children[0].setAttribute('aria-selected', 'false'); tabs.children[1].setAttribute('aria-selected', 'true');
+  await new Promise(r => setImmediate(r));
+  tabs.children[0].setAttribute('aria-selected', 'true'); tabs.children[1].setAttribute('aria-selected', 'false');
+  resolve(h.bindings.get('A')); await pending;
+  assert.deepEqual(h.opened, ['B']); assert.equal(h.controller.getSnapshot().record, null);
+});
