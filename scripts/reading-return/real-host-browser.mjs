@@ -194,6 +194,8 @@ try {
   page = await context.newPage();
   page.on('response', response => {
     if (!new URL(response.url()).pathname.startsWith('/plugins/')) return;
+    // The same prefix hosts the persistent HMR event stream; only bundles have finite bodies.
+    if (!/^(?:text|application)\/javascript(?:;|$)/i.test(response.headers()['content-type'] || '')) return;
     responses.push((async () => {
       const body = await response.body();
       const source = body.toString('utf8');
