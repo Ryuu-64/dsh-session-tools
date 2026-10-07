@@ -37,7 +37,7 @@ index 599c4cb..da63d76 100644
  </details>
  
 diff --git a/packages/client/ui-chat/src/client/apply.ts b/packages/client/ui-chat/src/client/apply.ts
-index e580772..3cc5259 100644
+index e580772..2a6aca8 100644
 --- a/packages/client/ui-chat/src/client/apply.ts
 +++ b/packages/client/ui-chat/src/client/apply.ts
 @@ -6,7 +6,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
@@ -67,7 +67,7 @@ index e580772..3cc5259 100644
  ]
  
  /**
-@@ -108,6 +110,49 @@ export function apply(ctx: Context): void {
+@@ -108,6 +110,57 @@ export function apply(ctx: Context): void {
      }
      return source
    }
@@ -80,8 +80,16 @@ index e580772..3cc5259 100644
 +  const readingService = new ChatReadingService({
 +    sequence: (id, key) => {
 +      const binding = ctx.sessions.binding(id)
-+      const seq = binding === undefined || binding.session.getSnapshot().removed
-+        ? undefined : chatSource(binding).getSnapshot().nodes.get(key)?.anchorSeq
++      if (binding === undefined || binding.session.getSnapshot().removed) return undefined
++      const node = chatSource(binding).getSnapshot().nodes.get(key)
++      if (node === undefined) return undefined
++      // anchorSeq is a render-order coordinate, including fractional synthetic
++      // and live rows. Paging needs durable evidence, not that coordinate.
++      // Reload the owning Turn from its start; a partial/unresolved location
++      // falls back to the first durable event in the captured source window.
++      const location = node.location
++      const seq = ((location.kind === 'turn' || location.kind === 'step') ? location.turn.start?.seq : undefined)
++        ?? binding.eventSource.getSnapshot().entries.find(entry => entry.type === 'event')?.event.seq
 +      return seq === undefined ? undefined : SessionSeq(seq)
 +    },
 +    prepare: async (id, key, seq, signal) => {
@@ -117,7 +125,7 @@ index e580772..3cc5259 100644
    registerConversationNodes(ctx)
    ctx.uiSession.provide({
      hooks: ['chat'],
-@@ -194,6 +239,7 @@ export function apply(ctx: Context): void {
+@@ -194,6 +247,7 @@ export function apply(ctx: Context): void {
          const chat = chatSource(binding)
          const conversation = ctx.uiConversation.binding(binding)
          return {

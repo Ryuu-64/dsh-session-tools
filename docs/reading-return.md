@@ -14,7 +14,7 @@
 
 ## 精确候选与 CI
 
-[宿主源码清单](../scripts/reading-return/host/source.json)固定官方 RC2 基线 `639ed015397290b3745d163aafe02ffee4aa3f84`、目标候选 `49dee709e22189fb31bcd09c13fcc751b9ad62c1` 和完整目标 tree。[宿主补丁](../scripts/reading-return/host/native-reading.patch)由该基线重建；CI 在编译前核对 tree、文件 Git blob 和 SHA256。
+[宿主源码清单](../scripts/reading-return/host/source.json)固定官方 RC2 基线 `639ed015397290b3745d163aafe02ffee4aa3f84`、目标候选 `6894c5db28b7834938b2dc3738f4f71e197695fb` 和完整目标 tree。[宿主补丁](../scripts/reading-return/host/native-reading.patch)由该基线重建；CI 在编译前核对 tree、文件 Git blob 和 SHA256。
 
 `Reading return RC2` 工作流在 GitHub-hosted Ubuntu 上安装官方锁文件，编译真实宿主与客户端合约及 bundle，运行已有受影响 GUI 检查，打包 ui-chat、ui-sidebar-right、ui-subagent 三包。既有浏览器 runner 将它们装入精确 RC2 包树，再安装当前插件到临时 Web profile。安装后核对实际解析到的 bundle hash，并保存浏览器实际收到的候选脚本响应及 hash，不能只靠相同版本号认定加载成功。
 

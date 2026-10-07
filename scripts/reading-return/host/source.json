@@ -2,9 +2,9 @@
   "repository": "deepseek-ai/deepseek-harness",
   "tag": "dsh-v0.2.0-rc.2",
   "base": "639ed015397290b3745d163aafe02ffee4aa3f84",
-  "head": "49dee709e22189fb31bcd09c13fcc751b9ad62c1",
-  "tree": "9915bbc5437c2b18275e53a6ec8b2fdaf01d2d35",
-  "patchSha256": "3973d3d7c69e7235285535f4e7f5233e50d4a4aa3242ff4ad8a56739b3786449",
+  "head": "6894c5db28b7834938b2dc3738f4f71e197695fb",
+  "tree": "3237a55ac20e46ee1aa553ba6941f087d2d52b85",
+  "patchSha256": "6dd4564e531f23f95d5672b944fc7efa7b0b9f296a8c5f126a078e8cfee00b7f",
   "files": {
     "packages/client/ui-chat/README.i18n.yaml": {
       "blob": "5c77e8ca01cf7effb7a6a4612c40428f7cfb4439",
@@ -19,8 +19,8 @@
       "sha256": "652134db4aeb7febeb10f832cb3e2b1fc6bec252a3b66f376da945c79578d375"
     },
     "packages/client/ui-chat/src/client/apply.ts": {
-      "blob": "3cc52596cde88efef7fa33303fe6abc4927d5217",
-      "sha256": "e6df19e1c7a614622008487ccfb30d4315e690b5c8280611ca28e39e5363079b"
+      "blob": "2a6aca894e20152fbee43e8713c6c5c1dd12223a",
+      "sha256": "2f12d85a470219ffc60c90c3aef36426f60e22c7666862ff61c86ee104c307ad"
     },
     "packages/client/ui-chat/src/client/chat/ChatGroupSeat.tsx": {
       "blob": "a3993dbf7307d2f270233308b9c8c0750a645287",
