@@ -2,12 +2,13 @@
 // This does not claim the synthetic-history or Desktop layers have passed.
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { seedHistory, exercise } from './browser-scenarios.mjs';
+import { seedHistory, exercise, exerciseRequiredCases } from './browser-scenarios.mjs';
 const createRedactor = secrets => value => { let text = String(value); for (const secret of secrets) text = text.split(secret).join('[redacted]'); return text.replace(/([?&]token=)[^\s&]+/g, '$1[redacted]'); };
 const npmCommand = args => ({ command: 'npm', args });
 const secrets = new Set();
@@ -45,6 +46,17 @@ const workspace = path.join(run, 'workspace');
 
 const queryPath = path.join(run, 'content-index.sqlite');
 for (const dir of [discovery, runtime, home]) fs.mkdirSync(dir, { recursive: true });
+const fixture = path.join(runtime, 'fixture-package');
+fs.mkdirSync(fixture);
+fs.copyFileSync(new URL('./fixture-host.mjs', import.meta.url), path.join(fixture, 'index.mjs'));
+fs.copyFileSync(new URL('./fixture-client.js', import.meta.url), path.join(fixture, 'client.js'));
+fs.writeFileSync(path.join(fixture, 'package.json'), JSON.stringify({
+  name: '@reading-return/fixture', version: '0.0.0', private: true, type: 'module',
+  main: './index.mjs', exports: { '.': './index.mjs', './client': './client.js', './package.json': './package.json' },
+  dsh: { client: { platform: 'web', inject: ['@deepseek-ai/dsh-api-session-controller', '@deepseek-ai/dsh-client-ui-sidebar-right', '@deepseek-ai/dsh-client-ui-settings', '@deepseek-ai/dsh-client-ui-conversation', '@deepseek-ai/dsh-client-ui-chat'] } },
+}));
+const fixtureToken = randomUUID();
+secrets.add(fixtureToken);
 const manifest = { name: 'session-tools-return-synthetic-acceptance', private: true, type: 'module', dependencies: { '@deepseek-ai/dsh': version } };
 const env = { ...process.env };
 // Never inherit a developer's DSH home, skill roots, or model credentials.
@@ -64,6 +76,7 @@ Object.assign(env, {
   npm_config_cache: path.join(process.env.RUNNER_TEMP || '/tmp', 'session-tools-return-registry-cache'),
   npm_config_registry: 'https://registry.npmjs.org',
   npm_config_userconfig: path.join(home, '.npmrc'),
+  READING_RETURN_FIXTURE_TOKEN: fixtureToken,
 });
 function npmInstall(dir, filename) {
   const log = fs.openSync(path.join(output, filename), 'w');
@@ -154,6 +167,7 @@ assert.equal(hash(), artifactSha256);
 const seeded = await seedHistory(runtimeRequire, home, workspace);
 const patch = path.join(home, '.dsh/profiles/web/cordis.patch.yml');
 fs.writeFileSync(patch, JSON.stringify([
+  { id: 'reading-return-fixture', name: pathToFileURL(path.join(fixture, 'index.mjs')).href },
   { id: 'session-title-llm', disabled: true },
   { id: 'session-query-sqlite', config: { path: queryPath, openAt: 'first-search' } },
   { id: 'ui-chat', config: { transcriptView: 'verbose' } },
@@ -230,6 +244,30 @@ try {
   await later.waitFor({ state: 'visible', timeout: 30000 }); await later.click();
   report.bootstrap = 'passed';
   report.scenarios = await exercise(page, browser, url, output);
+  report.requiredCases = await exerciseRequiredCases(page, url, output, {
+    control: async request => {
+      const result = await page.evaluate(async ({ request, token }) => {
+        const response = await fetch('reading-return-fixture', { method: 'POST', headers: { 'content-type': 'application/json', 'x-reading-fixture': token }, body: JSON.stringify(request) });
+        const body = await response.json();
+        if (!response.ok) throw new Error(JSON.stringify(body));
+        return body;
+      }, { request, token: fixtureToken });
+      return result;
+    },
+    setPlugin: async enabled => {
+      const args = enabled ? ['add', artifact, '--ignore-scripts'] : ['remove', '@ryuu-64/dsh-session-tools'];
+      execFileSync(process.execPath, [bin, 'plugin', '--profile', 'web', ...args], { cwd: runtime, env, stdio: 'pipe', timeout: 300000 });
+    },
+    hideSource: id => {
+      assert.ok(seeded.some(item => item.id === id), 'only this run\'s synthetic sessions may be removed');
+      const root = path.join(home, '.dsh/sessions');
+      const directory = fs.readdirSync(root, { recursive: true }).find(name => path.basename(name) === id && fs.statSync(path.join(root, name)).isDirectory());
+      assert.ok(directory, 'synthetic source must exist before removal');
+      const source = path.join(root, directory), backup = path.join(run, `removed-${id}`);
+      fs.renameSync(source, backup);
+      return () => fs.renameSync(backup, source);
+    },
+  });
   await Promise.all(responses);
   assert.deepEqual([...receivedBundles].sort(), [...candidateBundles.keys()].sort(), 'browser did not load every candidate host bundle');
   assert.deepEqual(errors, [], 'unhandled browser errors');
