@@ -345,7 +345,7 @@ export async function exerciseRequiredCases(page, url, output, fixture) {
   // Remaining groups are defined below beside their concrete fixture ownership.
   await exerciseInstances(page, url, fixture, record);
   await exerciseSidebar(page, fixture, record);
-  await exerciseFailures(page, url, fixture, record);
+  await exerciseFailures(page, url, fixture, record, output);
   await exerciseMissingSource(page, fixture, record);
   await exerciseUnload(page, fixture, record);
   return results;
@@ -393,8 +393,8 @@ async function prepareOldReturn(page, label) {
   await waitNoRestoreReference(page, label);
   return capture;
 }
-async function exerciseFailures(page, url, fixture, record) {
-  const nativeTransactions = await exerciseNativeTransactions(page, url, fixture);
+async function exerciseFailures(page, url, fixture, record, output) {
+  const nativeTransactions = await exerciseNativeTransactions(page, url, fixture, output);
   const capture = await prepareOldReturn(page, 'R');
   let gate = await holdHistoryResponse(page, 'R');
   try { await backButton(page, 'R').click(); await gate.wait(); await gate.finish('fail'); }
@@ -668,7 +668,7 @@ async function visibleAnchor(root) {
     return { key: row.dataset.chatAnchorKey, top: row.getBoundingClientRect().top - scroll.getBoundingClientRect().top };
   });
 }
-async function exerciseNativeTransactions(page, url, fixture) {
+async function exerciseNativeTransactions(page, url, fixture, output) {
   const context = await page.context().browser().newContext({
     viewport: { width: 1400, height: 900 }, locale: 'en-US',
     storageState: await page.context().storageState(),
@@ -734,5 +734,21 @@ async function exerciseNativeTransactions(page, url, fixture) {
     assert.equal(await isolated.evaluate(() => document.activeElement?.hasAttribute('data-composer-input')), true);
     await waitNoRestoreReference(isolated, 'Q');
     return { changed, firstLandingCancelled: interrupted, readerPosition, clockScope: 'separate browser context; native DOM and scroll geometry' };
+  } catch (error) {
+    // This context closes below; the runner's main-page failure capture cannot
+    // show this page's actual search, selection or transaction state.
+    await isolated.screenshot({ path: path.join(output, 'native-transaction-failure.png'), timeout: 5000 }).catch(() => {});
+    const evidence = await isolated.evaluate(() => ({
+      text: document.body.innerText,
+      inputs: [...document.querySelectorAll('input')].filter(input => /^Search sessions|^Search session names/.test(input.placeholder))
+        .map(input => ({ placeholder: input.placeholder, value: input.value })),
+      results: [...document.querySelectorAll('[role="treeitem"]')].map(row => row.textContent),
+      sessions: [...document.querySelectorAll('[data-conversation-session]')].map(root => root.dataset.conversationSession),
+      fixtureLoaded: Boolean(window.__readingReturnFixture),
+    })).catch(() => null);
+    try {
+      if (evidence) fs.writeFileSync(path.join(output, 'native-transaction-failure.json'), JSON.stringify(evidence, null, 2));
+    } catch { /* Preserve the original scenario failure if artifact writing fails. */ }
+    throw error;
   } finally { await context.close(); }
 }
