@@ -544,8 +544,12 @@ async function exerciseInstances(page, url, fixture, record) {
   await backButton(page, 'S').click(); await backButton(page, 'S').waitFor({ state: 'hidden', timeout: 20000 });
   await mainRoot(page, 'G').waitFor();
   await assertAnchor(sidebarRoots(page).nth(0), capture, 'nested source row after return');
-  const restoredBody = sidebarRoots(page).nth(0).locator(`[data-chat-group-key="${capture.groupKey}"] [data-step-process-body]`);
-  assert.ok(Math.abs(await restoredBody.evaluate(node => node.scrollTop) - capture.groupTop) < 2, 'group keeps its own saved scroll offset');
+  const restoredInnerTop = await sidebarRoots(page).nth(0).evaluate((root, key) => {
+    const group = [...root.querySelectorAll('[data-chat-group-key]')].find(node => node.dataset.chatGroupKey === key);
+    if (!group) throw new Error('restored source group is missing');
+    return group.querySelector('[data-step-process-body]').scrollTop;
+  }, capture.groupKey);
+  assert.ok(Math.abs(restoredInnerTop - capture.groupTop) < 2, 'group keeps its own saved scroll offset');
   const peerAfter = await rowPosition(sidebarRoots(page).nth(1), 'RETURN_S_USER_80');
   assert.equal(await sidebarRoots(page).nth(1).locator('[data-step-process][data-chat-turn="78"] button[aria-expanded]').first().getAttribute('aria-expanded'), peerExpanded, 'automatic reveal is occurrence-local');
   assert.ok(Math.abs(peerAfter.top - peerBefore.top) < 2, 'same-session peer instance does not move');
@@ -570,7 +574,11 @@ async function exerciseInstances(page, url, fixture, record) {
   }, { id: ids.S, turn: liveGroup.turn, calls: grown.calls });
   await page.waitForTimeout(150);
   await assertAnchor(sidebarRoots(page).nth(0), ongoingCapture, 'held group resists its own content growth');
-  const innerTop = await sidebarRoots(page).nth(0).locator(`[data-chat-group-key="${ongoingCapture.groupKey}"] [data-step-process-body]`).evaluate(node => node.scrollTop);
+  const innerTop = await sidebarRoots(page).nth(0).evaluate((root, key) => {
+    const group = [...root.querySelectorAll('[data-chat-group-key]')].find(node => node.dataset.chatGroupKey === key);
+    if (!group) throw new Error('live source group is missing');
+    return group.querySelector('[data-step-process-body]').scrollTop;
+  }, ongoingCapture.groupKey);
   assert.ok(Math.abs(innerTop - ongoingCapture.groupTop) < 2, 'new group members do not resume inner following');
   result.liveGroupGrowth = { capture: ongoingCapture, finalCalls: grown.calls, innerTop };
   const fold = sidebarRoots(page).nth(0).locator(`[data-step-process][data-chat-turn="${liveGroup.turn}"] button[aria-expanded]`).first();
