@@ -457,15 +457,46 @@ async function rowPosition(root, marker) {
 async function openEmbeddedCard(page, root, turn = 78) {
   const card = root.locator(`[data-chat-node-key][data-chat-turn="${turn}"]`).getByRole('button', { name: 'RETURN_B', exact: true }).last();
   await card.scrollIntoViewIfNeeded(); await card.focus();
-  const capture = await card.evaluate(element => {
+  await card.evaluate(element => {
     const root = element.closest('[data-conversation-content]');
     const scroll = root.querySelector('[data-conversation-scroll]');
-    const row = element.closest('[data-chat-anchor-key]');
-    const group = element.closest('[data-step-process-body]');
-    return { key: row.dataset.chatAnchorKey, top: row.getBoundingClientRect().top - scroll.getBoundingClientRect().top,
-      groupTop: group?.scrollTop ?? null, groupKey: group?.closest('[data-chat-group-key]')?.dataset.chatGroupKey ?? null };
+    const clicked = element.closest('[data-chat-anchor-key]');
+    const body = element.closest('[data-step-process-body]');
+    const measure = () => {
+      const viewport = scroll.getBoundingClientRect();
+      let top = viewport.top + 24;
+      let bottom = root.querySelector('[data-composer-seat]')?.getBoundingClientRect().top ?? viewport.bottom;
+      for (let parent = element.parentElement; parent && parent !== root; parent = parent.parentElement) {
+        if (!parent.hasAttribute('data-step-process-body') || parent.closest('[data-step-process]')?.hasAttribute('data-group-expanded-mode')) continue;
+        const rect = parent.getBoundingClientRect();
+        top = Math.max(top, rect.top); bottom = Math.min(bottom, rect.bottom);
+      }
+      const row = body && [...body.querySelectorAll('[data-chat-anchor-key][data-chat-node-key]')].find(node => {
+        const rect = node.getBoundingClientRect();
+        return !node.closest('[hidden]') && node.getClientRects().length && rect.bottom > top && rect.top < bottom;
+      });
+      return { key: row?.dataset.chatAnchorKey, top: row ? row.getBoundingClientRect().top - viewport.top : null,
+        groupTop: body?.scrollTop ?? null, groupKey: body?.closest('[data-chat-group-key]')?.dataset.chatGroupKey ?? null,
+        independentGroup: Boolean(body && !body.closest('[data-step-process]').hasAttribute('data-group-expanded-mode')),
+        clickedKey: clicked.dataset.chatAnchorKey, clickedTop: clicked.getBoundingClientRect().top - viewport.top };
+    };
+    const departure = { preActivation: measure(), activation: null };
+    const observe = event => { departure.activation = { ...measure(), trusted: event.isTrusted }; };
+    element.addEventListener('click', observe, { capture: true, once: true });
+    window.__readingReturnEmbeddedDeparture = departure;
+    window.__readingReturnEmbeddedCleanup = () => element.removeEventListener('click', observe, true);
   });
-  await page.keyboard.press('Enter');
+  let departure;
+  try {
+    await page.keyboard.press('Enter');
+    departure = await page.evaluate(() => window.__readingReturnEmbeddedDeparture);
+  } finally {
+    await page.evaluate(() => { window.__readingReturnEmbeddedCleanup?.(); delete window.__readingReturnEmbeddedCleanup; delete window.__readingReturnEmbeddedDeparture; });
+  }
+  assert.equal(departure?.activation?.trusted, true, 'embedded departure uses the actual trusted activation');
+  assert.equal(departure.activation.independentGroup, true, 'the initiating card owns a real inner scrollport');
+  assert.ok(departure.activation.key && departure.activation.top !== null, 'the inner scrollport has actual visible reading content');
+  const capture = { ...departure.activation, preActivation: departure.preActivation };
   await mainRoot(page, 'B').waitFor(); await backButton(page, 'S').waitFor();
   return capture;
 }

@@ -2,9 +2,9 @@
   "repository": "deepseek-ai/deepseek-harness",
   "tag": "dsh-v0.2.0-rc.2",
   "base": "639ed015397290b3745d163aafe02ffee4aa3f84",
-  "head": "8eeea65a4611585e4b96d6a3c49c5d5e7018712f",
-  "tree": "3ff71cd6bdfabd27efa3d64b40d3a7431ee1294f",
-  "patchSha256": "0d1000b14fe85b99b19e21e5026de35bedfcea7558f4cd66d8acb24e3d2c3e36",
+  "head": "da3fcdafbe608348ef7c1643557755f9dd523882",
+  "tree": "b8e4e3460178b4a65d922f91f4cb317f4975bce1",
+  "patchSha256": "1e9b7ca04e8a7cd218a077ccba4fda22a64ac95f91c902ed85866a865977842a",
   "files": {
     "packages/client/ui-chat/README.i18n.yaml": {
       "blob": "5c77e8ca01cf7effb7a6a4612c40428f7cfb4439",
@@ -43,12 +43,12 @@
       "sha256": "0399e7014f0bfabbc94f444541933b6508bcf726cab5d2656dcea744c5e5c7bf"
     },
     "packages/client/ui-chat/src/client/chat/use-chat-scroll.ts": {
-      "blob": "b9ee324c6ce037fc567482194c104f18e865620b",
-      "sha256": "b485919f02f21a6bd8a5cf2310e2bb826e42c7ed9d922355d44a4100adde480b"
+      "blob": "d8c072214a89fbcb8e25779ea3b397f4b6df592c",
+      "sha256": "3c20f520c8a6edf6a83509751bc8eaa44d2169c309882a353557692a0afb3a4d"
     },
     "packages/client/ui-chat/src/client/chat/use-chat-viewport.ts": {
-      "blob": "bb821780964e4f84d6ccd1cd1744bbec6cde91ac",
-      "sha256": "e42419a0b801f9d77d22211bf592ff981e9a028ab4b71b01c03ae8bee9e0db2a"
+      "blob": "6e5bde6a9fb4f0eb3e00bfb15ef69b8502a989e4",
+      "sha256": "8223e3c05e7b9c3770c24bba47b1754fc8b18a46a243d52be6015c652f94279e"
     },
     "packages/client/ui-chat/src/client/chat/use-process-scroll.ts": {
       "blob": "ef61c6b1a2cd0c7b079bf249bfbe4ff39fc0aac4",
@@ -59,8 +59,8 @@
       "sha256": "26d2f145383f6bd601fabc279fdfd5aea473fff8755df58d399fd3e759b1f88b"
     },
     "packages/client/ui-chat/src/client/contract/reading.ts": {
-      "blob": "d4372d629acef0813107c5af3b5cb279a269c40b",
-      "sha256": "30bb0d9ea43998fc54f05760bccbd4ed86e4891d52e18ba0975329a8caee1e09"
+      "blob": "90d45a4d9b945b39af2565f101f58ccf42d0ad21",
+      "sha256": "702422ce988d92d889aa427c35c05370484ae68239fd2df879f107e9a0735d61"
     },
     "packages/client/ui-chat/src/client/contract/slots.ts": {
       "blob": "c4b082535e74356b2ad8bdc9efdbb89a5415eca1",
@@ -71,8 +71,8 @@
       "sha256": "09bbef3c9f781daf881f2e74cf16171b670bd862ca113673a02ca1d4154edc50"
     },
     "packages/client/ui-chat/src/client/reading-service.ts": {
-      "blob": "09dc45daabe37293fbb4c2e59d00cb052ba22821",
-      "sha256": "9777b5b8a8fcc2836b1f2ba92164e20a61e1e655a4dba90200b518b837b9e480"
+      "blob": "d45b0e7ab7c260b161404a50dbd15ea3c408805b",
+      "sha256": "a5eb3661dd2bacd9bf7e78f8419887b05d1557fd967a06b5380ae1baf3ddc66e"
     },
     "packages/client/ui-sidebar-right/src/client/service.ts": {
       "blob": "51d75db7603c265bc1e9cfb87b63fef57a3ae049",

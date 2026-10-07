@@ -581,7 +581,7 @@ index 010b49d..1f25d18 100644
        this.publish({ initialized: true, followingTail, activeTurn })
      }
 diff --git a/packages/client/ui-chat/src/client/chat/use-chat-scroll.ts b/packages/client/ui-chat/src/client/chat/use-chat-scroll.ts
-index cdf14ed..b9ee324 100644
+index cdf14ed..d8c0722 100644
 --- a/packages/client/ui-chat/src/client/chat/use-chat-scroll.ts
 +++ b/packages/client/ui-chat/src/client/chat/use-chat-scroll.ts
 @@ -9,6 +9,7 @@ import { useChatViewport } from './use-chat-viewport.ts'
@@ -644,7 +644,7 @@ index cdf14ed..b9ee324 100644
 +    if (element === null || mountReading === undefined) return
 +    return mountReading({
 +      element,
-+      capture: () => viewport.captureReading(),
++      capture: origin => viewport.captureReading(origin),
 +      begin: (position, signal) => {
 +        signal.throwIfAborted()
 +        const owner = Symbol('reading-restore')
@@ -686,7 +686,7 @@ index cdf14ed..b9ee324 100644
  
    return {
 diff --git a/packages/client/ui-chat/src/client/chat/use-chat-viewport.ts b/packages/client/ui-chat/src/client/chat/use-chat-viewport.ts
-index f741530..bb82178 100644
+index f741530..6e5bde6 100644
 --- a/packages/client/ui-chat/src/client/chat/use-chat-viewport.ts
 +++ b/packages/client/ui-chat/src/client/chat/use-chat-viewport.ts
 @@ -1,7 +1,9 @@
@@ -746,7 +746,7 @@ index f741530..bb82178 100644
      this.stopPreserving()
      this.elements?.scroller.removeEventListener('scroll', this.onScroll)
      this.elements?.scroller.removeEventListener('scrollend', this.onScrollEnd, true)
-@@ -278,6 +289,232 @@ export class ChatViewport {
+@@ -278,6 +289,241 @@ export class ChatViewport {
      return metrics === null ? null : this.write(position.scrollTop, metrics, null)
    }
  
@@ -773,16 +773,25 @@ index f741530..bb82178 100644
 +
 +  /**
 +   * Capture the first visible paragraph through every clipping process-group viewport.
++   * @param origin - initiating control; an independent inner scrollport owns its reading selection.
 +   * @returns semantic content and nested offsets, without storing follow-tail intent.
 +   */
-+  captureReading(): ChatReadingPosition | null {
++  captureReading(origin: Element): ChatReadingPosition | null {
 +    const elements = this.elements
-+    if (elements === null) return null
++    if (elements === null || origin.closest('[data-chat-reading-root]') !== elements.list) return null
++    let sourceBody: Element | null = null
++    for (let parent: Element | null = origin; parent !== null && parent !== elements.list; parent = parent.parentElement) {
++      if (parent.hasAttribute('data-step-process-body') && parent.closest('[data-step-process]')?.hasAttribute('data-group-expanded-mode') !== true) {
++        sourceBody = parent
++        break
++      }
++    }
 +    const viewport = elements.scroller.getBoundingClientRect()
 +    const bottom = elements.composer?.getBoundingClientRect().top ?? viewport.bottom
 +    const line = viewport.top + Math.min(24, Math.max(1, (bottom - viewport.top) / 4))
 +    for (const row of elements.list.querySelectorAll<HTMLElement>('[data-chat-anchor-key][data-chat-node-key]:not([data-chat-flow-kind="turn-process"])')) {
 +      if (row.closest('[data-chat-reading-root]') !== elements.list) continue
++      if (sourceBody !== null && !sourceBody.contains(row)) continue
 +      if (row.closest('[hidden]') !== null || row.getClientRects().length === 0) continue
 +      let top = line, edge = bottom
 +      const bodies: HTMLElement[] = []
@@ -979,7 +988,7 @@ index f741530..bb82178 100644
    /** Retain the first eligible transcript seat in DOM order; selection reads no geometry. */
    beginPaging(): void {
      this.stopPreserving()
-@@ -428,6 +665,7 @@ export class ChatViewport {
+@@ -428,6 +674,7 @@ export class ChatViewport {
      if (this.elements === null || event.target !== this.elements.scroller) return
      if (this.observation.landing !== null && this.elements.scroller.scrollTop === this.observation.top) return
      this.invalidate()
@@ -987,7 +996,7 @@ index f741530..bb82178 100644
      if (this.paging !== null) {
        this.events?.resize()
        return
-@@ -437,18 +675,30 @@ export class ChatViewport {
+@@ -437,18 +684,30 @@ export class ChatViewport {
    }
  
    private readonly onScrollEnd = (event: Event): void => {
@@ -1215,7 +1224,7 @@ index 398e89e..79bfcc1 100644
        || (!this.animating && this.nearBottom(metrics))) return this.jump(element, metrics, metrics.floor)
 diff --git a/packages/client/ui-chat/src/client/contract/reading.ts b/packages/client/ui-chat/src/client/contract/reading.ts
 new file mode 100644
-index 0000000..d4372d6
+index 0000000..90d45a4
 --- /dev/null
 +++ b/packages/client/ui-chat/src/client/contract/reading.ts
 @@ -0,0 +1,102 @@
@@ -1309,8 +1318,8 @@ index 0000000..d4372d6
 +/** Package-owned mounted-view callbacks; consumers only use UiChatReading. */
 +export interface NativeChatReader {
 +  readonly element: HTMLElement
-+  /** @returns the actual visible native content position. */
-+  capture(): ChatReadingPosition | null
++  /** @param origin - user action within this owner. @returns its scrollport's actual visible native content position. */
++  capture(origin: Element): ChatReadingPosition | null
 +  /** @param position - semantic target. @param signal - operation cancellation. @returns one restoration transaction. */
 +  begin(position: ChatReadingPosition, signal: AbortSignal): NativeChatRestoreTransaction
 +}
@@ -1351,7 +1360,7 @@ index 6b361f1..030957a 100644
 +export type { ChatReadingBookmark, ChatReadingBookmarkId, ChatReadingRestoreResult, ChatReadingRoute, UiChatReading } from './contract/reading.ts'
 diff --git a/packages/client/ui-chat/src/client/reading-service.ts b/packages/client/ui-chat/src/client/reading-service.ts
 new file mode 100644
-index 0000000..09dc45d
+index 0000000..d45b0e7
 --- /dev/null
 +++ b/packages/client/ui-chat/src/client/reading-service.ts
 @@ -0,0 +1,270 @@
@@ -1474,7 +1483,7 @@ index 0000000..09dc45d
 +    }
 +    const mounted = occurrence?.mounted
 +    if (occurrence === undefined || mounted == null || !occurrence.owner.isConnected || occurrence.route?.signal.aborted) return null
-+    const position = mounted.reader.capture()
++    const position = mounted.reader.capture(origin)
 +    if (position === null) return null
 +    const seq = this.host.sequence(mounted.sessionId, position.nodeKey)
 +    if (seq === undefined) return null
