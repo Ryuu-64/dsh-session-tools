@@ -24,6 +24,7 @@ export async function seedHistory(require, home, workspace) {
   const load = name => import(pathToFileURL(require.resolve(name)).href);
   const { Session, SessionId, SESSION_FORMAT_VERSION } = await load('@deepseek-ai/dsh-session');
   const { createUserMessage, createAssistantMessage, createToolResultMessage, ToolCallId } = await load('@deepseek-ai/dsh-llm');
+  const { snapshotSubagentDescriptor } = await load('@deepseek-ai/dsh-subagent');
   const { Context } = await load('@deepseek-ai/cordis');
   const { default: Jsonl } = await load('@deepseek-ai/dsh-session-persistence-jsonl');
   fs.mkdirSync(workspace, { recursive: true });
@@ -53,8 +54,10 @@ export async function seedHistory(require, home, workspace) {
     }
     for (const label of ['T', 'H', 'G', 'S', 'D', 'R', 'U', 'V', 'P', 'Q']) {
       const id = SessionId(ids[label]), session = Session.create(id);
+      const child = ['S', 'V'].includes(label);
       for (let turn = 1; turn <= 80; turn++) {
         session.append('turn/start', { turn }); session.append('step/start', { turn, step: 1 });
+        if (child && turn === 1) session.append('subagent/descriptor', snapshotSubagentDescriptor({ mode: 'one-shot', provider: 'reading-fixture', label: `RETURN_${label}` }));
         const user = session.append('user/message', createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: `RETURN_${label}_USER_${turn}\n\n${'Synthetic source reading paragraph. '.repeat(12)}` }] }), { surfaceOp: 'append' });
         if (turn === 1) session.append('session/title', { title: `RETURN_${label}`, messageSeqs: [user.seq], source: { kind: 'fallback' } });
         session.append('request/header', { header: { config: { provider: 'deepseek-official', model: 'deepseek-v4-flash' } }, reason: turn === 1 ? 'initial' : 'change' });
@@ -74,7 +77,6 @@ export async function seedHistory(require, home, workspace) {
         session.append('step/end', { turn, step: 1 }); session.append('turn/end', { turn, reason: { kind: 'completed' } });
       }
       const events = session.snapshotEvents();
-      const child = ['S', 'V'].includes(label);
       const handle = await ctx.sessionPersistence.create({ version: SESSION_FORMAT_VERSION, id, createdAt: Date.now() - 60000, isSeeded: false, cwd: workspace, delegationDepth: child ? 1 : 0, ...(child ? { origin: 'subagent', parentSession: ids.G } : {}) });
       await handle.append(events); await handle.close(); result.push({ id, turns: 80, events: events.length });
     }
