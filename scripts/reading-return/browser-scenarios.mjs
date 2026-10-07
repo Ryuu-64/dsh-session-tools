@@ -88,8 +88,9 @@ async function openFromSidebar(page, label) {
   const search = page.getByRole('button', { name: 'Search sessions' });
   await search.waitFor({ timeout: 30000 });
   if (await search.getAttribute('aria-expanded') !== 'true') await search.click();
-  await page.getByRole('textbox', { name: /^(Search sessions\.\.\.|Search session names)$/ }).fill(`RETURN_${label}_USER_1`);
-  const result = page.getByRole('tree', { name: 'Search results' }).getByRole('treeitem');
+  await page.getByRole('textbox', { name: /^(Search sessions\.\.\.|Search session names)$/ }).fill(`RETURN_${label}`);
+  const result = page.getByRole('tree', { name: 'Search results' }).getByRole('treeitem')
+    .filter({ has: page.getByText(`RETURN_${label}`, { exact: true }) });
   await result.first().waitFor({ timeout: 60000 }); await result.first().click();
   await page.locator(`[data-conversation-session="${ids[label]}"]`).waitFor();
   await page.getByText(`RETURN_${label}_USER_80`, { exact: false }).last().waitFor();
@@ -593,10 +594,16 @@ async function exerciseInstances(page, url, fixture, record) {
 }
 async function exerciseSidebar(page, fixture, record) {
   const result = {};
+  await page.evaluate(() => window.__readingReturnFixture.setTranscript('standard'));
   for (const outcome of ['remount', 'closed', 'replaced']) {
     await openFromSidebar(page, 'G');
     const identity = await page.evaluate(({ parent, child, key }) => window.__readingReturnFixture.openSidebar(parent, child, key), { parent: ids.G, child: ids.S, key: outcome });
     const root = sidebarRoots(page).first(); await root.waitFor();
+    const turn = root.locator('[data-turn-process="78"]');
+    await turn.scrollIntoViewIfNeeded();
+    if (await turn.getAttribute('aria-expanded') !== 'true') await turn.click();
+    const groupHeader = root.locator('[data-step-process][data-chat-turn="78"] button[aria-expanded]').first();
+    if (await groupHeader.getAttribute('aria-expanded') !== 'true') await groupHeader.click();
     await root.evaluate(node => { window.__readingReturnSidebarSource = node; });
     const capture = await openEmbeddedCard(page, root);
     assert.equal(await page.evaluate(() => window.__readingReturnSidebarSource.isConnected), false, 'leaving the parent must unmount the source Chat for this case');
@@ -622,6 +629,7 @@ async function exerciseSidebar(page, fixture, record) {
     }
     result[outcome] = { identity, capture };
   }
+  await page.evaluate(() => window.__readingReturnFixture.setTranscript('verbose'));
   record('sidebarLifetimes', result);
 }
 async function exerciseMissingSource(page, fixture, record) {
