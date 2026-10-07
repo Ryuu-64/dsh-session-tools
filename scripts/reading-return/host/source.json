@@ -2,9 +2,9 @@
   "repository": "deepseek-ai/deepseek-harness",
   "tag": "dsh-v0.2.0-rc.2",
   "base": "639ed015397290b3745d163aafe02ffee4aa3f84",
-  "head": "6894c5db28b7834938b2dc3738f4f71e197695fb",
-  "tree": "3237a55ac20e46ee1aa553ba6941f087d2d52b85",
-  "patchSha256": "6dd4564e531f23f95d5672b944fc7efa7b0b9f296a8c5f126a078e8cfee00b7f",
+  "head": "8eeea65a4611585e4b96d6a3c49c5d5e7018712f",
+  "tree": "3ff71cd6bdfabd27efa3d64b40d3a7431ee1294f",
+  "patchSha256": "0d1000b14fe85b99b19e21e5026de35bedfcea7558f4cd66d8acb24e3d2c3e36",
   "files": {
     "packages/client/ui-chat/README.i18n.yaml": {
       "blob": "5c77e8ca01cf7effb7a6a4612c40428f7cfb4439",
@@ -47,8 +47,8 @@
       "sha256": "b485919f02f21a6bd8a5cf2310e2bb826e42c7ed9d922355d44a4100adde480b"
     },
     "packages/client/ui-chat/src/client/chat/use-chat-viewport.ts": {
-      "blob": "d6370ad0a5d3742008edc68b655eb8d11dbf3240",
-      "sha256": "b1b6c791830a1d6508d19372049a44adc0a7982ca07a38ef588a77ba1dab22e3"
+      "blob": "bb821780964e4f84d6ccd1cd1744bbec6cde91ac",
+      "sha256": "e42419a0b801f9d77d22211bf592ff981e9a028ab4b71b01c03ae8bee9e0db2a"
     },
     "packages/client/ui-chat/src/client/chat/use-process-scroll.ts": {
       "blob": "ef61c6b1a2cd0c7b079bf249bfbe4ff39fc0aac4",

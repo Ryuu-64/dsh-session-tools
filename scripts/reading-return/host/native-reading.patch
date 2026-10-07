@@ -686,7 +686,7 @@ index cdf14ed..b9ee324 100644
  
    return {
 diff --git a/packages/client/ui-chat/src/client/chat/use-chat-viewport.ts b/packages/client/ui-chat/src/client/chat/use-chat-viewport.ts
-index f741530..d6370ad 100644
+index f741530..bb82178 100644
 --- a/packages/client/ui-chat/src/client/chat/use-chat-viewport.ts
 +++ b/packages/client/ui-chat/src/client/chat/use-chat-viewport.ts
 @@ -1,7 +1,9 @@
@@ -732,7 +732,7 @@ index f741530..d6370ad 100644
 +  private readingOwner: symbol | null = null
 +  private readonly revealed = new Set<HTMLElement>()
 +  private revealedTurn: string | null = null
-+  private focusedReading: { element: HTMLElement; owner: symbol } | null = null
++  private focusedReading: { element: HTMLElement; owner: symbol; cleanup: () => void } | null = null
 +  private heldPosition: ChatReadingPosition | null = null
 +  private readonly heldGroups = new Set<HTMLElement>()
  
@@ -746,7 +746,7 @@ index f741530..d6370ad 100644
      this.stopPreserving()
      this.elements?.scroller.removeEventListener('scroll', this.onScroll)
      this.elements?.scroller.removeEventListener('scrollend', this.onScrollEnd, true)
-@@ -278,6 +289,220 @@ export class ChatViewport {
+@@ -278,6 +289,232 @@ export class ChatViewport {
      return metrics === null ? null : this.write(position.scrollTop, metrics, null)
    }
  
@@ -929,8 +929,9 @@ index f741530..d6370ad 100644
 +    this.readingOwner = null
 +    this.heldPosition = null
 +    if (this.focusedReading?.owner === released) {
-+      if (this.focusedReading.element.ownerDocument.activeElement === this.focusedReading.element) this.focusedReading.element.blur()
-+      this.focusedReading = null
++      const focused = this.focusedReading
++      if (focused.element.ownerDocument.activeElement === focused.element) focused.element.blur()
++      focused.cleanup()
 +    }
 +    if (released !== null) for (const element of this.revealed) requestReadingReveal(element, released, false)
 +    this.revealed.clear()
@@ -959,15 +960,26 @@ index f741530..d6370ad 100644
 +    if (paragraph === null || !paragraph.isConnected) return
 +    const hadTabIndex = paragraph.hasAttribute('tabindex')
 +    if (!hadTabIndex) paragraph.setAttribute('tabindex', '-1')
-+    this.focusedReading = { element: paragraph, owner }
++    let cleaned = false
++    const cleanup = (): void => {
++      if (cleaned) return
++      cleaned = true
++      paragraph.removeEventListener('blur', cleanup)
++      if (!hadTabIndex && paragraph.getAttribute('tabindex') === '-1') paragraph.removeAttribute('tabindex')
++      if (this.focusedReading?.cleanup === cleanup) this.focusedReading = null
++    }
++    this.focusedReading = { element: paragraph, owner, cleanup }
++    paragraph.addEventListener('blur', cleanup, { once: true })
 +    paragraph.focus({ preventScroll: true })
-+    if (!hadTabIndex) paragraph.removeAttribute('tabindex')
++    // Keep a non-interactive paragraph focusable while it owns focus. Removing
++    // tabindex immediately after focus can return focus to BODY.
++    if (paragraph.ownerDocument.activeElement !== paragraph) cleanup()
 +  }
 +
    /** Retain the first eligible transcript seat in DOM order; selection reads no geometry. */
    beginPaging(): void {
      this.stopPreserving()
-@@ -428,6 +653,7 @@ export class ChatViewport {
+@@ -428,6 +665,7 @@ export class ChatViewport {
      if (this.elements === null || event.target !== this.elements.scroller) return
      if (this.observation.landing !== null && this.elements.scroller.scrollTop === this.observation.top) return
      this.invalidate()
@@ -975,7 +987,7 @@ index f741530..d6370ad 100644
      if (this.paging !== null) {
        this.events?.resize()
        return
-@@ -437,18 +663,30 @@ export class ChatViewport {
+@@ -437,18 +675,30 @@ export class ChatViewport {
    }
  
    private readonly onScrollEnd = (event: Event): void => {
