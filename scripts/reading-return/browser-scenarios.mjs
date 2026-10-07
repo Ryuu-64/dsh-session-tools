@@ -100,19 +100,39 @@ async function openCard(page, from, to, turn) {
   const card = seat.getByRole('button', { name: `RETURN_${to}`, exact: true }).last();
   await card.scrollIntoViewIfNeeded();
   await card.focus();
-  // The reading position is measured after the browser brought the real card
-  // into view, immediately before the trusted keyboard activation.
-  const captured = await scope.evaluate(root => {
-    window.__readingReturnSourceFlow = root.querySelector('[data-chat-flow]');
-    const scroll = root.querySelector('[data-conversation-scroll]'), flow = root.querySelector('[data-chat-flow]');
-    const top = scroll.getBoundingClientRect().top + 24;
-    const rows = [...flow.querySelectorAll('[data-chat-anchor-key][data-chat-node-key]:not([data-chat-flow-kind="turn-process"])')];
-    const row = rows.find(x => !x.closest('[hidden]') && x.getClientRects().length && x.getBoundingClientRect().bottom > top);
-    return { key: row?.dataset.chatAnchorKey, top: row?.getBoundingClientRect().top - scroll.getBoundingClientRect().top,
-      atTail: scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop < 3,
-      sourceSeq: row && window.__readingReturnFixture?.sourceEvent(root.dataset.conversationSession, row.dataset.chatNodeKey) };
+  // Observe the departure during the actual activation, before the plugin's
+  // bubbling click handler captures. Paging can still move between Playwright calls.
+  await card.evaluate(button => {
+    const root = button.closest('[data-conversation-session]');
+    const measure = () => {
+      const scroll = root.querySelector('[data-conversation-scroll]'), flow = root.querySelector('[data-chat-flow]');
+      const top = scroll.getBoundingClientRect().top + 24;
+      const rows = [...flow.querySelectorAll('[data-chat-anchor-key][data-chat-node-key]:not([data-chat-flow-kind="turn-process"])')];
+      const row = rows.find(x => !x.closest('[hidden]') && x.getClientRects().length && x.getBoundingClientRect().bottom > top);
+      return { key: row?.dataset.chatAnchorKey, top: row?.getBoundingClientRect().top - scroll.getBoundingClientRect().top,
+        atTail: scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop < 3,
+        sourceSeq: row && window.__readingReturnFixture?.sourceEvent(root.dataset.conversationSession, row.dataset.chatNodeKey) };
+    };
+    const departure = { preActivation: measure(), activation: null };
+    const observe = event => {
+      departure.activation = { ...measure(), trusted: event.isTrusted };
+      window.__readingReturnSourceFlow = root.querySelector('[data-chat-flow]');
+    };
+    button.addEventListener('click', observe, { capture: true, once: true });
+    window.__readingReturnDeparture = departure;
+    window.__readingReturnDepartureCleanup = () => button.removeEventListener('click', observe, true);
   });
-  await page.keyboard.press('Enter');
+  let departure;
+  try {
+    await page.keyboard.press('Enter');
+    departure = await page.evaluate(() => window.__readingReturnDeparture);
+  } finally {
+    await page.evaluate(() => { window.__readingReturnDepartureCleanup?.(); delete window.__readingReturnDepartureCleanup; delete window.__readingReturnDeparture; });
+  }
+  assert.equal(departure?.activation?.trusted, true, 'departure is measured at the real trusted card activation');
+  const captured = { ...departure.activation, preActivation: departure.preActivation,
+    activationChange: { keyChanged: departure.preActivation.key !== departure.activation.key,
+      topDelta: departure.activation.top - departure.preActivation.top } };
   await page.locator(`[data-conversation-session="${ids[to]}"]`).waitFor({ timeout: 20000 });
   const back = page.getByRole('button', { name: `返回 RETURN_${from} 的原位置`, exact: true });
   await back.waitFor({ timeout: 20000 });
