@@ -89,9 +89,16 @@ async function openFromSidebar(page, label) {
   await search.waitFor({ timeout: 30000 });
   if (await search.getAttribute('aria-expanded') !== 'true') await search.click();
   await page.getByRole('textbox', { name: /^(Search sessions\.\.\.|Search session names)$/ }).fill(`RETURN_${label}`);
+  // Cold search rows can display Untitled until the Session summary is loaded.
+  // Each seed's USER/ANSWER marker identifies only its own content, unlike a
+  // tool card mentioning another session's title. Search rows expose no ID.
+  const identity = page.getByText(`RETURN_${label}`, { exact: true })
+    .or(page.getByText(new RegExp(`\\bRETURN_${label}_(?:USER|ANSWER)_\\d+\\b`)));
   const result = page.getByRole('tree', { name: 'Search results' }).getByRole('treeitem')
-    .filter({ has: page.getByText(`RETURN_${label}`, { exact: true }) });
-  await result.first().waitFor({ timeout: 60000 }); await result.first().click();
+    .filter({ has: identity });
+  await result.waitFor({ timeout: 60000 });
+  assert.equal(await result.count(), 1, 'search must identify exactly one seeded session');
+  await result.click();
   await page.locator(`[data-conversation-session="${ids[label]}"]`).waitFor();
   await page.getByText(`RETURN_${label}_USER_80`, { exact: false }).last().waitFor();
 }
