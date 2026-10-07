@@ -1,0 +1,1812 @@
+diff --git a/packages/client/ui-chat/README.i18n.yaml b/packages/client/ui-chat/README.i18n.yaml
+index 548db39..5c77e8c 100644
+--- a/packages/client/ui-chat/README.i18n.yaml
++++ b/packages/client/ui-chat/README.i18n.yaml
+@@ -48,5 +48,5 @@
+   en: 811787a5d2feaa90
+   zh: 3f1697bbc1fc7691
+ /deepseek-ai-dsh-client-ui-chat/known-limitations-and-deferred-work/dev-note:
+-  en: b8b7eeb4ae675d2a
+-  zh: fbe7022074ba81b9
++  en: 835a8f47c73a1e75
++  zh: eee2d8335daa33c0
+diff --git a/packages/client/ui-chat/README.md b/packages/client/ui-chat/README.md
+index f09b12c..f4dcaa1 100644
+--- a/packages/client/ui-chat/README.md
++++ b/packages/client/ui-chat/README.md
+@@ -177,7 +177,7 @@ None; Chat presentation does not assemble or mutate provider requests.
+ <details>
+ <summary>Working context for maintainers — click to expand</summary>
+ 
+-None.
++Unverified source candidate: `uiChatReading` issues transient bookmarks for mounted reading occurrences. The native owner coordinates paragraph restoration, nested process scrolling, pending motion and a reading hold. An explicit hold is intended to survive passive growth even at the old tail; go-to-latest releases it. Main navigation retains the original container identity. Registered Sidebar reading routes retain the original TabOccurrence lifetime across Session switches and Chat remounts; closure or replacement invalidates them. Unregistered embeddings require the original mount. Restoration is a cancellable transaction; only its successful commit becomes a lasting reading hold, and automatic disclosure is local to the native occurrence. An uninterrupted failed transaction restores its prior follow policy. Ordinary clicks do not arm tail following; directional scroll input and an actual arrival are separate from passive layout changes. Browser event ordering still requires acceptance. Bookmark restoration does not write the Session-wide scroll cache. Type checks, existing GUI checks and real-browser acceptance are still required before publication; this paragraph records candidate scope rather than successful verification.
+ 
+ </details>
+ 
+diff --git a/packages/client/ui-chat/README.zh.md b/packages/client/ui-chat/README.zh.md
+index 599c4cb..da63d76 100644
+--- a/packages/client/ui-chat/README.zh.md
++++ b/packages/client/ui-chat/README.zh.md
+@@ -177,7 +177,7 @@ Chat 会在历史前插与 renderer 重新挂载时恢复语义锚点，并且
+ <details>
+ <summary>维护者工作上下文——点击展开</summary>
+ 
+-无。
++尚未验证的源码候选：`uiChatReading` 为已挂载的阅读实例发放临时书签。原生拥有者协调段落恢复、嵌套步骤组滚动、未完成的动画与固定阅读状态。固定阅读意图在原末尾也应抵抗被动内容增长，主动去最新才解除。主视图导航保留原容器身份。已注册的侧栏阅读路径在会话切换和 Chat 重挂载时保留原 TabOccurrence 生命周期，关闭或替换后失效；未注册路径的嵌入视图要求原挂载仍在。恢复是可取消事务，成功提交后才成为长期阅读保持，自动展开仅影响当前原生实例。没有后续用户操作的事务失败会恢复原跟尾策略。普通点击不会开启跟尾意图；有方向的滚动输入及实际到达与被动布局变化分开，浏览器事件顺序仍待验收。书签恢复不写入会话级共享滚动缓存。发布前仍须完成类型检查、既有 GUI 检查和真实浏览器验收；本段记录候选范围，不表示验证通过。
+ 
+ </details>
+ 
+diff --git a/packages/client/ui-chat/src/client/apply.ts b/packages/client/ui-chat/src/client/apply.ts
+index e580772..3cc5259 100644
+--- a/packages/client/ui-chat/src/client/apply.ts
++++ b/packages/client/ui-chat/src/client/apply.ts
+@@ -6,7 +6,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
+ import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
+ import type { GroupKey } from '@deepseek-ai/dsh-client-ui-conversation/client'
+ import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+-import type { SessionId } from '@deepseek-ai/dsh-session/types'
++import { SessionSeq, type SessionId } from '@deepseek-ai/dsh-session/types'
+ import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+ import type {} from '@deepseek-ai/dsh-client-ui-sidebar-browser/client'
+ import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+@@ -40,6 +40,8 @@ import { derivePresentationPolicy } from './presentation-policy.ts'
+ import { CHAT_SETTINGS_NAMESPACE, DEFAULT_LINK_OPENING, DEFAULT_TRANSCRIPT_VIEW_MODE, type ChatSettings } from '../chat-settings.ts'
+ import { LinkOpeningRow, type LinkOpeningRowInjected } from './settings/LinkOpeningRow.tsx'
+ import { PerformanceUsageRow, type PerformanceUsageRowInjected } from './settings/PerformanceUsageRow.tsx'
++import type { ChatReadingBookmark, ChatReadingRoute } from './contract/reading.ts'
++import { ChatReadingService, ReadingSourceError } from './reading-service.ts'
+ import { PerformanceUsagePolicy } from './performance-usage.ts'
+ import { useTurnDataValue } from './chat/use-turn-data.ts'
+ import { bindDisclosure } from './chat/use-disclosure.ts'
+@@ -56,7 +58,7 @@ const CHAT_NODE_INJECT: ChatNodeInjected = {
+ /** Services required by the Chat target and its presentation registrations. */
+ export const inject = [
+   'slots', 'sessions', 'uiWorkspace', 'uiSession', 'uiConversation', 'locale',
+-  'configForms', 'remote', 'remote.session', 'sidebarRight',
++  'configForms', 'remote', 'remote.session', 'sidebarRight', 'layout',
+ ]
+ 
+ /**
+@@ -108,6 +110,49 @@ export function apply(ctx: Context): void {
+     }
+     return source
+   }
++  const waitReading = <T,>(promise: Promise<T>, signal: AbortSignal): Promise<T> => new Promise((resolve, reject) => {
++    const abort = (): void => { reject(signal.reason) }
++    if (signal.aborted) { abort(); return }
++    signal.addEventListener('abort', abort, { once: true })
++    void promise.then(resolve, reject).finally(() => { signal.removeEventListener('abort', abort) })
++  })
++  const readingService = new ChatReadingService({
++    sequence: (id, key) => {
++      const binding = ctx.sessions.binding(id)
++      const seq = binding === undefined || binding.session.getSnapshot().removed
++        ? undefined : chatSource(binding).getSnapshot().nodes.get(key)?.anchorSeq
++      return seq === undefined ? undefined : SessionSeq(seq)
++    },
++    prepare: async (id, key, seq, signal) => {
++      const reference = ctx.sessions.retain(id, { source: 'controllerOperation', signal })
++      try {
++        const binding = await waitReading(reference.ready, signal)
++        signal.throwIfAborted()
++        const verify = (): void => {
++          const state = binding.session.getSnapshot()
++          if (state.removed || state.openState !== 'open') throw new ReadingSourceError('unavailable')
++        }
++        verify()
++        const conversation = ctx.uiConversation.binding(binding)
++        conversation.activate('chat')
++        if (chatSource(binding).getSnapshot().nodes.get(key) === undefined) {
++          await waitReading(binding.session.loadThrough(seq), signal)
++          signal.throwIfAborted()
++          verify()
++        }
++        if (chatSource(binding).getSnapshot().nodes.get(key) === undefined) throw new ReadingSourceError('missing')
++        return () => { reference.release() }
++      } catch (error) { reference.release(); throw error }
++    },
++    open: id => { ctx.uiWorkspace.openSession(id) },
++    beginNavigation: () => ctx.layout.beginNavigation(),
++  })
++  ctx.reflect.provide('uiChatReading', {
++    connectOccurrence: (element: Element, route: ChatReadingRoute) => readingService.connectOccurrence(element, route),
++    capture: (origin: Element) => readingService.capture(origin),
++    restore: (bookmark: ChatReadingBookmark, signal: AbortSignal) => readingService.restore(bookmark, signal),
++  })
++  ctx.effect(() => async () => { await readingService.dispose() }, 'ui-chat: mounted reading occurrences')
+   registerConversationNodes(ctx)
+   ctx.uiSession.provide({
+     hooks: ['chat'],
+@@ -194,6 +239,7 @@ export function apply(ctx: Context): void {
+         const chat = chatSource(binding)
+         const conversation = ctx.uiConversation.binding(binding)
+         return {
++          mountReading: reader => readingService.mount(sessionId, reader),
+           hooks: { presentation },
+           keyedHooks: {
+             chatNode: key => chat.getSnapshot().nodes.source(key),
+diff --git a/packages/client/ui-chat/src/client/chat/ChatGroupSeat.tsx b/packages/client/ui-chat/src/client/chat/ChatGroupSeat.tsx
+index 443cb04..a3993db 100644
+--- a/packages/client/ui-chat/src/client/chat/ChatGroupSeat.tsx
++++ b/packages/client/ui-chat/src/client/chat/ChatGroupSeat.tsx
+@@ -14,7 +14,7 @@ import { storedTurnProcessEntry } from '../stores.ts'
+ import { ChatNodeSeat } from './ChatNodeSeat.tsx'
+ import { chatRenderKey } from './render-entry.ts'
+ import { processTitle } from './step-process.ts'
+-import { useSearchableHidden } from './searchable-hidden.ts'
++import { useReadingReveal, useSearchableHidden } from './searchable-hidden.ts'
+ import { useDisclosure } from './use-disclosure.ts'
+ import { useProcessScroll } from './use-process-scroll.ts'
+ import css from './ChatGroupSeat.module.css'
+@@ -133,7 +133,10 @@ export const ChatGroupSeat = memo(function ChatGroupSeat({ groupKey, useChatGrou
+   const turn = useChatGroup(groupKey, group => group?.data.turn)
+   const closed = useChatGroup(groupKey, group => group?.data.closed)
+   const foldCompleted = props.usePresentation(policy => policy.foldCompletedTurns)
+-  const { expanded: open, setExpanded: setOpen } = useDisclosure()
++  const rootReading = useReadingReveal()
++  const bodyReading = useReadingReveal()
++  const { expanded, setExpanded: setOpen } = useDisclosure()
++  const open = expanded || bodyReading.active
+   const firstKey = members?.[0]?.key ?? ''
+   const presentation = props.useChatNodeProcess(firstKey)
+   const turnLocation = props.useChatNode(firstKey, (node) => {
+@@ -149,24 +152,25 @@ export const ChatGroupSeat = memo(function ChatGroupSeat({ groupKey, useChatGrou
+   const selectStored = useCallback((state: Readonly<ChatStoreState>) => turn === undefined
+     ? undefined : storedTurnProcessEntry(state, turn), [turn])
+   const stored = props.useStore(selectStored)
+-  const outerHidden = foldCompleted && presentation?.turnClosed === true && spec !== undefined
++  const outerHidden = !rootReading.active && foldCompleted && presentation?.turnClosed === true && spec !== undefined
+     && !alwaysOpen && stored?.answerStep !== (spec.answerStep ?? 0)
+   const revealOuter = useCallback(() => {
+     if (spec !== undefined && !alwaysOpen) props.actions.setTurnProcessOpen(spec.turn, spec.answerStep ?? 0, true)
+   }, [props.actions, spec, alwaysOpen])
+-  const rootRef = useSearchableHidden(outerHidden, revealOuter)
++  const rootRef = useSearchableHidden(outerHidden, revealOuter, rootReading)
+   useEffect(() => {
+     if (outerHidden && rootRef.current?.hasAttribute('hidden')) setOpen(false)
+   }, [outerHidden, rootRef, setOpen])
+   const reveal = useCallback(() => { setOpen(true) }, [setOpen])
+-  const bodyRef = useSearchableHidden(grouped && !open, reveal)
++  const bodyRef = useSearchableHidden(grouped && !open, reveal, bodyReading)
+   const contentRef = useRef<HTMLDivElement>(null)
+   const bodyId = useId()
+   const { edges, events, initialize } = useProcessScroll(bodyRef, contentRef, open, grouped)
+   const toggle = useCallback(() => {
++    bodyReading.clear()
+     if (!open) initialize(closed === false ? 'bottom' : 'top')
+     setOpen(!open)
+-  }, [closed, initialize, open, setOpen])
++  }, [closed, initialize, open, setOpen, bodyReading.clear])
+   if (members === undefined) return null
+   const classes = [css.body, !grouped ? css.expandedBody : '',
+     grouped && edges.canScrollUp ? css.fadeTop : '', grouped && edges.canScrollDown ? css.fadeBottom : '']
+diff --git a/packages/client/ui-chat/src/client/chat/ChatNodeSeat.tsx b/packages/client/ui-chat/src/client/chat/ChatNodeSeat.tsx
+index f2269da..2fb1ea0 100644
+--- a/packages/client/ui-chat/src/client/chat/ChatNodeSeat.tsx
++++ b/packages/client/ui-chat/src/client/chat/ChatNodeSeat.tsx
+@@ -7,7 +7,7 @@ import type { ChatNode } from '../contract/chat-nodes.ts'
+ import type { ChatNodeStore } from '../contract/snapshot.ts'
+ import { TURN_PROCESS_INDEPENDENT_KINDS, turnProcessAlwaysOpen } from '../contract/turn-process.ts'
+ import { storedTurnProcessEntry } from '../stores.ts'
+-import { useSearchableHidden } from './searchable-hidden.ts'
++import { clearTurnReadingReveal, useReadingReveal, useSearchableHidden } from './searchable-hidden.ts'
+ import css from './ChatView.module.css'
+ 
+ interface ChatNodeSeatProps extends ChatNodeOwnerProps {
+@@ -47,6 +47,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
+   cwd, openFile, openSkill, inspectCall, forkAt,
+   loadImage, renderMessageImages, fileMentions, useStore, actions, renderSlot, t,
+ }: ChatNodeSeatProps) {
++  const readingReveal = useReadingReveal()
+   const node = useChatNode(nodeKey)
+   const routedNode = node as ChatNode | undefined
+   const turn = turnOf(routedNode)
+@@ -62,12 +63,13 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
+   const liveProcess = processPresentation !== undefined && !processPresentation.turnClosed
+   const interleavedInput = processPresentation?.hasInterleavedInput === true
+   const alwaysOpen = liveProcess || interleavedInput || turnProcessAlwaysOpen(routedNode)
+-  const processOpen = alwaysOpen || processEntry !== undefined
++  const processOpen = alwaysOpen || processEntry !== undefined || readingReveal.active
+   const setOpen = useCallback((open: boolean) => {
++    if (processSpec !== undefined) clearTurnReadingReveal(readingReveal.ref.current, processSpec.turn)
+     if (processSpec !== undefined && !alwaysOpen) {
+       actions.setTurnProcessOpen(processSpec.turn, processSpec.answerStep ?? 0, open)
+     }
+-  }, [actions, processSpec, alwaysOpen])
++  }, [actions, processSpec, alwaysOpen, readingReveal.ref])
+   const foldCompleted = usePresentation(policy => policy.foldCompletedTurns)
+   // A loaded end makes a partial historical Turn eligible without its start.
+   const processWindowReady = processSpec !== undefined
+@@ -111,7 +113,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
+   const revealProcess = useCallback(() => {
+     if (processMember) setOpen(true)
+   }, [processMember, setOpen])
+-  const wrapperRef = useSearchableHidden(processHidden, revealProcess)
++  const wrapperRef = useSearchableHidden(processHidden, revealProcess, readingReveal)
+   const [disclosureReset] = useState(() => createSnapshotStore(0))
+   const turnData = turnDataOf(routedNode)
+   const hookContext = useMemo<ChatNodeHookContext>(() => ({ turnData, disclosureReset }), [turnData, disclosureReset])
+diff --git a/packages/client/ui-chat/src/client/chat/ChatView.tsx b/packages/client/ui-chat/src/client/chat/ChatView.tsx
+index 460f98b..f7d24c6 100644
+--- a/packages/client/ui-chat/src/client/chat/ChatView.tsx
++++ b/packages/client/ui-chat/src/client/chat/ChatView.tsx
+@@ -101,7 +101,7 @@ const ChatNodeList = memo(function ChatNodeList({ entries, useChatGroup, pending
+ export function ChatView({
+   useSession, useChat, useChatNode, useChatNodeProcess, useChatGroup, useConversation, useSessions, useStore, actions, renderSlot,
+   sessionId, openFile, openSkill, openExternalLink, loadOlder, loadThrough, loadImage, inspectCall, chatScroll, forkAt, fileMentions,
+-  usePresentation, useProjection, t,
++  usePresentation, useProjection, mountReading, t,
+ }: ChatViewSlotProps) {
+   const order = useChat(s => s.order)
+   const groupedEntries = useConversation(snapshot => snapshot.views.grouped('chat')?.entries)
+@@ -219,6 +219,7 @@ export function ChatView({
+     ? latestSteering.source.rpcId : latestSteering?.id ?? null
+   const scroll = useChatScroll({
+     ready: openState === 'open',
++    mountReading,
+     order, firstSeq, lastKey, running, loadingOlder, hasMore, chatScroll, loadOlder, loadThrough,
+     lastIsUser: lastKey !== null && nodeStore.get(lastKey)?.kind === 'user',
+     steeringId,
+@@ -238,7 +239,7 @@ export function ChatView({
+         />
+       )}
+       <div className={css.root} data-chat-following-tail={scroll.followingTail ? '' : undefined}>
+-        <div ref={scroll.listRef} className={css.scroll}>
++        <div ref={scroll.listRef} className={css.scroll} data-chat-reading-root="">
+           <div ref={scroll.columnRef} className={css.column} data-chat-flow="">
+             {openState === 'loading' && <div className={css.hint}>{t('chat.loadingHistory')}</div>}
+             {openState === 'error' && openError !== null && (
+diff --git a/packages/client/ui-chat/src/client/chat/searchable-hidden.ts b/packages/client/ui-chat/src/client/chat/searchable-hidden.ts
+index 5a0f47c..1510fa0 100644
+--- a/packages/client/ui-chat/src/client/chat/searchable-hidden.ts
++++ b/packages/client/ui-chat/src/client/chat/searchable-hidden.ts
+@@ -1,26 +1,88 @@
+-import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
++import { useEffect, useLayoutEffect, useRef, useState, useCallback, type RefObject } from 'react'
++
++const READING_REVEAL_EVENT = 'dsh-reading-reveal'
++interface ReadingRevealRequest { readonly owner: symbol | null; readonly active: boolean }
++
++/**
++ * Change one restoration-owned local disclosure without changing the Session store.
++ * @param element - native disclosure wrapper.
++ * @param owner - restoration transaction identity.
++ * @param active - acquire or release this owner's local override.
++ */
++export function requestReadingReveal(element: HTMLElement, owner: symbol, active: boolean): void {
++  element.dispatchEvent(new CustomEvent<ReadingRevealRequest>(READING_REVEAL_EVENT, { detail: { owner, active } }))
++}
++
++/**
++ * Apply an explicit Turn disclosure gesture to this native Chat's local overrides.
++ * @param element - control owner's native row.
++ * @param turn - Turn whose display is being changed by the reader.
++ */
++export function clearTurnReadingReveal(element: HTMLElement | null, turn: number): void {
++  const root = element?.closest('[data-chat-reading-root]')
++  if (root === null || root === undefined) return
++  for (const row of root.querySelectorAll<HTMLElement>('[data-chat-turn]')) {
++    if (row.closest('[data-chat-reading-root]') !== root || row.dataset.chatTurn !== String(turn)) continue
++    row.dispatchEvent(new CustomEvent<ReadingRevealRequest>(READING_REVEAL_EVENT, { detail: { owner: null, active: false } }))
++    for (const body of row.querySelectorAll<HTMLElement>('[data-step-process-body]')) {
++      if (body.closest('[data-chat-reading-root]') !== root) continue
++      body.dispatchEvent(new CustomEvent<ReadingRevealRequest>(READING_REVEAL_EVENT, { detail: { owner: null, active: false } }))
++    }
++  }
++}
++
++/**
++ * Own a local display override for one mounted disclosure.
++ * @returns native ref, effective override and explicit user-clear operation.
++ */
++export function useReadingReveal(): { ref: RefObject<HTMLDivElement>; active: boolean; clear: () => void } {
++  const ref = useRef<HTMLDivElement>(null)
++  const [owner, setOwner] = useState<symbol | null>(null)
++  const clear = useCallback(() => { setOwner(null) }, [])
++  useLayoutEffect(() => {
++    const element = ref.current
++    if (element === null) return
++    const update = (event: Event): void => {
++      const request = (event as CustomEvent<ReadingRevealRequest>).detail
++      setOwner(current => request.active ? request.owner : request.owner === null || current === request.owner ? null : current)
++    }
++    element.addEventListener(READING_REVEAL_EVENT, update)
++    return () => { element.removeEventListener(READING_REVEAL_EVENT, update) }
++  })
++  return { ref, active: owner !== null, clear }
++}
+ 
+ /**
+  * Apply searchable hidden state without unmounting a stable subtree.
+  * @param hidden - whether the subtree is currently hidden.
+  * @param reveal - callback for browser find's `beforematch` reveal.
++ * @param reading - optional native local disclosure also reflected by this component's controls.
+  * @returns ref for the stable subtree root.
+  */
+ export function useSearchableHidden(
+   hidden: boolean,
+   reveal: () => void,
++  reading?: ReturnType<typeof useReadingReveal>,
+ ): RefObject<HTMLDivElement> {
+-  const ref = useRef<HTMLDivElement>(null)
++  const ownReading = useReadingReveal()
++  const local = reading ?? ownReading
++  const ref = local.ref
++  const effectiveHidden = hidden && !local.active
++  const wasReading = useRef(local.active)
++  const suppressFocusReveal = useRef(false)
+   useLayoutEffect(() => {
+     const element = ref.current
+     if (element === null) return
+-    if (hidden && element.contains(element.ownerDocument.activeElement)) {
++    if (wasReading.current && !local.active) suppressFocusReveal.current = true
++    if (!hidden || local.active) suppressFocusReveal.current = false
++    wasReading.current = local.active
++    if (effectiveHidden && !suppressFocusReveal.current && element.contains(element.ownerDocument.activeElement)) {
+       reveal()
+       return
+     }
+-    if (hidden) element.setAttribute('hidden', 'until-found')
++    if (effectiveHidden) element.setAttribute('hidden', 'until-found')
+     else element.removeAttribute('hidden')
+-  }, [hidden, reveal])
++  }, [effectiveHidden, hidden, local.active, reveal, ref])
+   useEffect(() => {
+     const element = ref.current
+     if (element === null) return
+diff --git a/packages/client/ui-chat/src/client/chat/use-chat-reading.ts b/packages/client/ui-chat/src/client/chat/use-chat-reading.ts
+index 010b49d..1f25d18 100644
+--- a/packages/client/ui-chat/src/client/chat/use-chat-reading.ts
++++ b/packages/client/ui-chat/src/client/chat/use-chat-reading.ts
+@@ -2,7 +2,7 @@
+ import { useLayoutEffect, useState } from 'react'
+ import type { ChatScrollPosition, ChatViewSlotProps } from '../contract/slots.ts'
+ import type { ChatViewport, ViewportLanding, ViewportScroll } from './use-chat-viewport.ts'
+-import { useScrollFollow, type ScrollFollow } from './use-scroll-follow.ts'
++import { useScrollFollow, type ScrollFollow, type ViewportMetrics } from './use-scroll-follow.ts'
+ 
+ const FOLLOW_THRESHOLD = 24
+ const SCROLL_SAMPLE_INTERVAL_MS = 500
+@@ -25,6 +25,10 @@ type PositionStore = ChatViewSlotProps['chatScroll']
+ 
+ /** Owns reading policy and its cancellable sampling work, without DOM access. */
+ export class ChatReading {
++  private held = false
++  private restoreOwner: symbol | null = null
++  private policyVersion = 0
++  private restorePolicy: { owner: symbol; followingTail: boolean; held: boolean; version: number } | null = null
+   private sampleTimer: number | null = null
+   private probeFrame: number | null = null
+   private sampled: ((sample: ReadingSample) => void) | null = null
+@@ -72,12 +76,107 @@ export class ChatReading {
+ 
+   /** Release bottom follow and pending sampling for an explicit navigation. */
+   pauseFollowing(): void {
++    this.policyVersion += 1
++    if (this.restoreOwner !== null) this.cancelRestore(this.restoreOwner, false)
+     this.cancelPending()
+     this.publish({ ...this.state, followingTail: false })
+   }
+ 
+-  /** Land at the current floor and clear saved reader position. */
+-  followTail(): void {
++  /**
++   * Begin one restoration transaction, superseding any earlier restoration ownership.
++   * @param owner - unique transaction identity.
++   */
++  beginRestore(owner: symbol): void {
++    this.restorePolicy = { owner, followingTail: this.state.followingTail, held: this.held, version: this.policyVersion }
++    this.cancelPending()
++    this.restoreOwner = owner
++    this.viewport.beginReadingRestore(owner)
++    this.held = true
++    this.follow.forgetReaderIntent()
++    this.viewport.holdMotion(this.follow, owner)
++    this.publish({ ...this.state, followingTail: false })
++  }
++
++  /** @param owner - transaction identity. @returns whether it still owns this reader. */
++  ownsRestore(owner: symbol): boolean { return this.restoreOwner === owner }
++
++  /**
++   * Adopt the measured landing only while this transaction owns restoration.
++   * @param owner - transaction identity.
++   * @param landing - exact native viewport result.
++   */
++  holdPosition(owner: symbol, landing: ViewportLanding): void {
++    if (!this.ownsRestore(owner)) return
++    this.cancelPending()
++    this.commit(landing, false, landing.turn ?? this.state.activeTurn)
++    this.refreshActiveTurn()
++  }
++
++  /**
++   * Promote the transaction's hold to ordinary native reading state.
++   * @param owner - completing transaction.
++   * @returns false when a newer operation or reader intent already superseded it.
++   */
++  commitRestore(owner: symbol): boolean {
++    if (!this.ownsRestore(owner)) return false
++    this.restoreOwner = null
++    this.restorePolicy = null
++    this.follow.commitHold(owner)
++    this.viewport.commitReading(owner)
++    return true
++  }
++
++  /**
++   * Withdraw only this transaction's temporary compensation, disclosure and follow holds.
++   * @param owner - failed, cancelled or superseded transaction.
++   * @param rollback - restore prior policy only for a failure without subsequent user ownership.
++   */
++  cancelRestore(owner: symbol, rollback = true): void {
++    if (!this.ownsRestore(owner)) return
++    const previous = this.restorePolicy
++    const previousPolicy = rollback && previous !== null && previous.owner === owner
++      && previous.version === this.policyVersion ? previous : null
++    const restorePrevious = previousPolicy !== null
++    this.restoreOwner = null
++    this.restorePolicy = null
++    this.cancelPending()
++    this.viewport.releaseReading(owner, restorePrevious)
++    this.follow.release(owner, restorePrevious)
++    this.held = previousPolicy?.held ?? false
++    this.follow.forgetReaderIntent()
++    const followingTail = previousPolicy?.followingTail ?? false
++    this.publish({ ...this.state, followingTail })
++    if (followingTail) this.followTail()
++  }
++
++  /**
++   * Interrupt restoration without allowing an ordinary click to arm future following.
++   * @param metrics - present only for downward scroll input in this viewport.
++   */
++  noticeReader(metrics?: ViewportMetrics): void {
++    this.policyVersion += 1
++    if (this.restoreOwner !== null) this.cancelRestore(this.restoreOwner, false)
++    this.follow.noticeReader(metrics)
++  }
++
++  /** Expire directional input when content or viewport geometry changes passively. */
++  forgetReaderIntent(): void { this.follow.forgetReaderIntent() }
++
++  /**
++   * Land at the current floor and clear saved reader position.
++   * @param explicit - true only for a reader's go-to-latest action.
++   */
++  followTail(explicit = false): void {
++    if (this.held && !explicit) return
++    if (explicit) {
++      this.policyVersion += 1
++      this.restoreOwner = null
++      this.restorePolicy = null
++      this.held = false
++      this.follow.forgetReaderIntent()
++      this.viewport.releaseReading()
++      this.follow.release()
++    }
+     const landing = this.viewport.scrollToBottom(this.follow)
+     if (landing === null) return
+     this.cancelPending()
+@@ -86,6 +185,7 @@ export class ChatReading {
+ 
+   /** Restore the Session's semantic position, or follow the tail when none is saved. */
+   restore(): void {
++    if (this.held) return
+     const saved = this.store.read()
+     if (saved === null) { this.followTail(); return }
+     const landing = this.viewport.restore(saved)
+@@ -105,8 +205,10 @@ export class ChatReading {
+    * @param landing - measured navigation result that replaces pending reader input.
+    */
+   acceptNavigation(landing: ViewportLanding): void {
++    this.policyVersion += 1
++    if (this.restoreOwner !== null) this.cancelRestore(this.restoreOwner, false)
+     this.cancelPending()
+-    const following = this.follow.nearBottom(landing.metrics)
++    const following = !this.held && this.follow.nearBottom(landing.metrics)
+     this.commit(landing, following, landing.turn ?? (following ? this.viewport.latestTurn : this.state.activeTurn))
+   }
+ 
+@@ -124,8 +226,13 @@ export class ChatReading {
+    * @param scroll - attributed scroll delivery; other reader movement remains pending until sampled.
+    */
+   readonly onScroll = (scroll: ViewportScroll): void => {
+-    if ((!scroll.movedByReader && this.state.followingTail)
+-      || (scroll.movedByReader && scroll.metrics.top >= scroll.metrics.floor)) {
++    if (this.held && this.follow.sample(scroll.metrics, scroll.movedByReader)) {
++      this.followTail(true)
++      this.sampled?.({ position: null, movedByReader: true, followingTail: true })
++      return
++    }
++    if (!this.held && ((!scroll.movedByReader && this.state.followingTail)
++      || (scroll.movedByReader && scroll.metrics.top >= scroll.metrics.floor))) {
+       this.followTail()
+       this.sampled?.({ position: null, movedByReader: scroll.movedByReader, followingTail: true })
+       return
+@@ -134,10 +241,11 @@ export class ChatReading {
+   }
+ 
+   /** Settle pending reader movement at the browser's scrollend. */
+-  readonly onScrollEnd = (): void => { this.flushSample() }
++  readonly onScrollEnd = (outer = true): void => { this.flushSample(); if (outer) this.follow.forgetReaderIntent() }
+ 
+   /** Reconcile a layout change without overriding unsampled reader input. */
+   onResize(): void {
++    this.follow.forgetReaderIntent()
+     if (this.pending) return
+     if (this.state.followingTail) this.followTail()
+     else this.refreshActiveTurn()
+@@ -158,8 +266,10 @@ export class ChatReading {
+   private commit(
+     landing: ViewportLanding, followingTail: boolean, activeTurn: number | null, initialized = true,
+   ): void {
+-    if (followingTail) this.store.save(null)
+-    else if (landing.position !== null) this.store.save(landing.position)
++    if (!this.held) {
++      if (followingTail) this.store.save(null)
++      else if (landing.position !== null) this.store.save(landing.position)
++    }
+     this.publish({ initialized, followingTail, activeTurn })
+   }
+ 
+@@ -192,13 +302,19 @@ export class ChatReading {
+     this.cancelPending()
+     const scroll = this.viewport.readScroll()
+     if (scroll === null) return
+-    const followingTail = this.follow.sample(scroll.metrics, scroll.movedByReader)
++    const sampledFollow = this.follow.sample(scroll.metrics, scroll.movedByReader)
++    if (this.held && sampledFollow) {
++      this.followTail(true)
++      this.sampled?.({ position: null, movedByReader: true, followingTail: true })
++      return
++    }
++    const followingTail = !this.held && sampledFollow
+     let position: ChatScrollPosition | null = null
+     if (!scroll.movedByReader && followingTail) this.followTail()
+     else {
+       position = followingTail ? null : this.viewport.capturePosition()
+       this.viewport.acknowledge(scroll.metrics)
+-      if (followingTail || position !== null) this.store.save(position)
++      if (!this.held && (followingTail || position !== null)) this.store.save(position)
+       const activeTurn = this.follow.nearBottom(scroll.metrics) ? this.viewport.latestTurn : this.viewport.readVisibleTurn(scroll.metrics)
+       this.publish({ initialized: true, followingTail, activeTurn })
+     }
+diff --git a/packages/client/ui-chat/src/client/chat/use-chat-scroll.ts b/packages/client/ui-chat/src/client/chat/use-chat-scroll.ts
+index cdf14ed..b9ee324 100644
+--- a/packages/client/ui-chat/src/client/chat/use-chat-scroll.ts
++++ b/packages/client/ui-chat/src/client/chat/use-chat-scroll.ts
+@@ -9,6 +9,7 @@ import { useChatViewport } from './use-chat-viewport.ts'
+ /** Committed content and Session operations used to reconcile scroll ownership. */
+ export interface ChatScrollInput extends ChatNavigationInput {
+   readonly chatScroll: ChatViewSlotProps['chatScroll']
++  readonly mountReading?: ChatViewSlotProps['mountReading']
+   readonly ready: boolean
+   readonly order: readonly string[]
+   readonly lastKey: string | null
+@@ -37,7 +38,7 @@ interface ChatScrollState extends ChatReadingState {
+ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
+   const {
+     ready, order, firstSeq, lastKey, lastIsUser, steeringId, submissionId, running,
+-    loadedTurns, chatScroll, hasMore, loadingOlder, loadOlder, loadThrough,
++    loadedTurns, chatScroll, mountReading, hasMore, loadingOlder, loadOlder, loadThrough,
+   } = input
+   const { viewport, listRef, columnRef } = useChatViewport()
+   const { reading, state } = useChatReading(viewport, chatScroll, loadedTurns.at(-1)?.turn ?? null)
+@@ -57,6 +58,8 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
+         && current.steeringId !== previous?.submissionId)
+       || (current.submissionId !== null && current.submissionId !== previous?.submissionId
+         && current.submissionId !== previous?.steeringId)
++    if (previous !== current) reading.forgetReaderIntent()
++    if (viewport.preserveReading()) return
+     if (reading.pending && !ownInput) return
+     content.current.applied = current
+     if (current.ready && !content.current.opened) {
+@@ -82,17 +85,20 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
+       navigation.cancel()
+       reading.followTail()
+     } else navigation.reconcile()
+-  }, [reading, navigation])
++  }, [reading, navigation, viewport])
+ 
+   useLayoutEffect(() => {
+     const disconnectViewport = viewport.connect({
+       scroll: reading.onScroll,
+-      scrollEnd: () => {
+-        reading.onScrollEnd()
++      scrollEnd: outer => {
++        reading.onScrollEnd(outer)
+         navigation.readerSettled()
+       },
+-      interact: () => { navigation.cancel() },
++      interact: metrics => { navigation.cancel(); reading.noticeReader(metrics) },
++      intentEnded: () => { reading.forgetReaderIntent() },
+       resize: () => {
++        reading.forgetReaderIntent()
++        if (viewport.preserveReading()) return
+         if (!navigation.contentCommitted()) reading.onResize()
+         navigation.reconcile()
+       },
+@@ -109,6 +115,40 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
+     }
+   }, [viewport, reading, navigation, processContent])
+ 
++  useLayoutEffect(() => {
++    const element = viewport.element
++    if (element === null || mountReading === undefined) return
++    return mountReading({
++      element,
++      capture: () => viewport.captureReading(),
++      begin: (position, signal) => {
++        signal.throwIfAborted()
++        const owner = Symbol('reading-restore')
++        navigation.cancel()
++        reading.beginRestore(owner)
++        const abort = (): void => { reading.cancelRestore(owner, false) }
++        signal.addEventListener('abort', abort, { once: true })
++        return {
++          step: () => {
++            if (!reading.ownsRestore(owner)) return 'interrupted'
++            const result = viewport.restoreReading(position, owner)
++            if (result === 'pending' || result === 'changed') return result
++            reading.holdPosition(owner, result.landing)
++            return { exactOffset: result.exactOffset }
++          },
++          commit: () => {
++            if (signal.aborted || !reading.ownsRestore(owner)) return false
++            viewport.focusReading(position, owner)
++            if (signal.aborted || !reading.commitRestore(owner)) return false
++            signal.removeEventListener('abort', abort)
++            return true
++          },
++          cancel: () => { signal.removeEventListener('abort', abort); reading.cancelRestore(owner) },
++        }
++      },
++    })
++  }, [viewport, reading, navigation, mountReading])
++
+   useLayoutEffect(() => {
+     const previous = content.current.input
+     content.current.input = {
+@@ -126,7 +166,7 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
+ 
+   const returnToBottom = useCallback(() => {
+     navigation.cancel()
+-    reading.followTail()
++    reading.followTail(true)
+   }, [navigation, reading])
+ 
+   return {
+diff --git a/packages/client/ui-chat/src/client/chat/use-chat-viewport.ts b/packages/client/ui-chat/src/client/chat/use-chat-viewport.ts
+index f741530..d6370ad 100644
+--- a/packages/client/ui-chat/src/client/chat/use-chat-viewport.ts
++++ b/packages/client/ui-chat/src/client/chat/use-chat-viewport.ts
+@@ -1,7 +1,9 @@
+ /** Turn-aware DOM scrolling and geometry, without history-loading or follow policy. */
+ import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
+ import type { ChatScrollPosition } from '../contract/slots.ts'
++import type { ChatReadingPosition } from '../contract/reading.ts'
+ import type { ChatSnapshot } from '../contract/snapshot.ts'
++import { requestReadingReveal } from './searchable-hidden.ts'
+ import { scrollMetrics, ScrollFollow, type ViewportMetrics } from './use-scroll-follow.ts'
+ export type { ViewportMetrics } from './use-scroll-follow.ts'
+ 
+@@ -20,9 +22,10 @@ export interface ViewportLanding {
+ 
+ interface ViewportEvents {
+   scroll: (event: ViewportScroll) => void
+-  scrollEnd: () => void
++  scrollEnd: (outer?: boolean) => void
+   resize: () => void
+-  interact: () => void
++  interact: (metrics?: ViewportMetrics) => void
++  intentEnded?: () => void
+ }
+ 
+ interface ViewportElements {
+@@ -38,17 +41,24 @@ interface PagingPosition {
+   readonly group: { readonly body: HTMLElement; readonly content: HTMLElement; readonly top: number } | null
+ }
+ 
+-const READING_INTENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown', 'beforematch'] as const
++const READING_INTENTS = ['wheel', 'touchstart', 'touchmove', 'pointerdown', 'keydown', 'beforematch'] as const
+ const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '])
+ 
+ /** Owns one Chat scrollport's DOM operations, event listeners, and size observer. */
+ export class ChatViewport {
+   private elements: ViewportElements | null = null
++  private touchY: number | null = null
+   private observer: ResizeObserver | null = null
+   private events: ViewportEvents | null = null
+   private turns: ReturnType<ChatSnapshot['navigation']['items']> = []
+   private observation: { top: number; landing: ViewportLanding | null } = { top: 0, landing: null }
+   private paging: PagingPosition | null = null
++  private readingOwner: symbol | null = null
++  private readonly revealed = new Set<HTMLElement>()
++  private revealedTurn: string | null = null
++  private focusedReading: { element: HTMLElement; owner: symbol } | null = null
++  private heldPosition: ChatReadingPosition | null = null
++  private readonly heldGroups = new Set<HTMLElement>()
+ 
+   /**
+    * Bind to the containing scrollport and observe content and viewport sizes.
+@@ -78,6 +88,7 @@ export class ChatViewport {
+ 
+   /** Disconnect DOM resources and clear observations for the detached view. */
+   detach(): void {
++    this.releaseReading()
+     this.stopPreserving()
+     this.elements?.scroller.removeEventListener('scroll', this.onScroll)
+     this.elements?.scroller.removeEventListener('scrollend', this.onScrollEnd, true)
+@@ -278,6 +289,220 @@ export class ChatViewport {
+     return metrics === null ? null : this.write(position.scrollTop, metrics, null)
+   }
+ 
++  /** Native mounting element supplied only to the package's registration callback. */
++  get element(): HTMLElement | null { return this.elements?.list ?? null }
++
++  private paragraphs(row: HTMLElement): HTMLElement[] {
++    return [...row.querySelectorAll<HTMLElement>('p,pre,li,h1,h2,h3,h4,h5,h6,blockquote')]
++      .filter(element => element.querySelector('p,pre,li') === null
++        && element.closest('[data-chat-reading-root]') === row.closest('[data-chat-reading-root]'))
++  }
++
++  private readingRow(position: ChatReadingPosition): HTMLElement | null {
++    if (this.elements === null) return null
++    return [...this.elements.list.querySelectorAll<HTMLElement>('[data-chat-anchor-key][data-chat-node-key]')]
++      .find(row => row.closest('[data-chat-reading-root]') === this.elements?.list
++        && row.dataset.chatAnchorKey === position.anchorKey && row.dataset.chatNodeKey === position.nodeKey) ?? null
++  }
++
++  private readingParagraph(position: ChatReadingPosition): HTMLElement | null {
++    const row = this.readingRow(position)
++    return row === null ? null : position.paragraph === -1 ? row : this.paragraphs(row)[position.paragraph] ?? null
++  }
++
++  /**
++   * Capture the first visible paragraph through every clipping process-group viewport.
++   * @returns semantic content and nested offsets, without storing follow-tail intent.
++   */
++  captureReading(): ChatReadingPosition | null {
++    const elements = this.elements
++    if (elements === null) return null
++    const viewport = elements.scroller.getBoundingClientRect()
++    const bottom = elements.composer?.getBoundingClientRect().top ?? viewport.bottom
++    const line = viewport.top + Math.min(24, Math.max(1, (bottom - viewport.top) / 4))
++    for (const row of elements.list.querySelectorAll<HTMLElement>('[data-chat-anchor-key][data-chat-node-key]:not([data-chat-flow-kind="turn-process"])')) {
++      if (row.closest('[data-chat-reading-root]') !== elements.list) continue
++      if (row.closest('[hidden]') !== null || row.getClientRects().length === 0) continue
++      let top = line, edge = bottom
++      const bodies: HTMLElement[] = []
++      for (let parent = row.parentElement; parent !== null && parent !== elements.list; parent = parent.parentElement) {
++        if (!parent.hasAttribute('data-step-process-body') || parent.closest('[data-step-process]')?.hasAttribute('data-group-expanded-mode') === true) continue
++        bodies.push(parent)
++        const rect = parent.getBoundingClientRect()
++        top = Math.max(top, rect.top)
++        edge = Math.min(edge, rect.bottom)
++      }
++      if (top >= edge) continue
++      const rect = row.getBoundingClientRect()
++      if (rect.bottom <= top || rect.top >= edge) continue
++      const paragraphs = this.paragraphs(row)
++      const paragraph = paragraphs.find(element => {
++        const box = element.getBoundingClientRect()
++        return element.getClientRects().length > 0 && box.bottom > top && box.top < edge
++      }) ?? row
++      const box = paragraph.getBoundingClientRect()
++      const anchorKey = row.dataset.chatAnchorKey, nodeKey = row.dataset.chatNodeKey
++      if (anchorKey === undefined || nodeKey === undefined) continue
++      return {
++        anchorKey, nodeKey, paragraph: paragraphs.indexOf(paragraph),
++        tag: paragraph.tagName, text: paragraph.textContent ?? '',
++        top: box.top - viewport.top, width: viewport.width, height: box.height,
++        groups: bodies.flatMap(body => {
++          const key = body.closest<HTMLElement>('[data-chat-group-key]')?.dataset.chatGroupKey
++          return key === undefined ? [] : [{ key, top: box.top - body.getBoundingClientRect().top }]
++        }),
++      }
++    }
++    return null
++  }
++
++  /**
++   * Cancel native outer motion and keep its follow controller in reading mode.
++   * @param follow - this viewport's native follow owner.
++   */
++  holdMotion(follow: ScrollFollow, owner: symbol): void {
++    if (this.elements !== null) follow.hold(this.elements.scroller, owner)
++  }
++
++  /**
++   * Restore one exact paragraph, revealing hidden ancestors through their native disclosure handlers.
++   * @param position - previously captured semantic position and nested clipping offsets.
++   * @returns pending layout, changed content, or the confirmed landing and offset precision.
++   */
++  restoreReading(position: ChatReadingPosition, owner: symbol): 'pending' | 'changed' | { landing: ViewportLanding; exactOffset: boolean } {
++    if (this.readingOwner !== owner) return 'changed'
++    const elements = this.elements, row = this.readingRow(position)
++    for (const body of this.heldGroups) {
++      if (body.isConnected && elements?.list.contains(body)) continue
++      const content = body.querySelector('[data-step-process-content]')
++      if (content !== null) this.observer?.unobserve(content)
++      this.heldGroups.delete(body)
++    }
++    if (elements === null || row === null) return 'pending'
++    const turn = row.dataset.chatTurn
++    if (turn !== undefined && this.revealedTurn !== turn) {
++      this.revealedTurn = turn
++      for (const seat of elements.list.querySelectorAll<HTMLElement>('[data-chat-turn]')) {
++        if (seat.closest('[data-chat-reading-root]') !== elements.list || seat.dataset.chatTurn !== turn || (!seat.hasAttribute('data-chat-node-key') && !seat.hasAttribute('data-chat-group-key'))) continue
++        this.revealed.add(seat)
++        requestReadingReveal(seat, owner, true)
++      }
++    }
++    let hidden = false
++    for (let parent: HTMLElement | null = row; parent !== null && parent !== elements.list; parent = parent.parentElement) {
++      if (parent.hasAttribute('hidden')) {
++        hidden = true
++        this.revealed.add(parent)
++        requestReadingReveal(parent, owner, true)
++      }
++    }
++    if (hidden || row.getClientRects().length === 0) return 'pending'
++    const paragraph = this.readingParagraph(position)
++    if (paragraph === null || paragraph.tagName !== position.tag || !(paragraph.textContent ?? '').startsWith(position.text)) return 'changed'
++    for (let parent = paragraph.parentElement; parent !== null && parent !== elements.list; parent = parent.parentElement) {
++      if (!parent.hasAttribute('data-step-process-body') || parent.closest('[data-step-process]')?.hasAttribute('data-group-expanded-mode') === true) continue
++      const key = parent.closest<HTMLElement>('[data-chat-group-key]')?.dataset.chatGroupKey
++      const saved = position.groups.find(group => group.key === key)
++      const metrics = scrollMetrics(parent)
++      const top = paragraph.getBoundingClientRect().top - parent.getBoundingClientRect().top
++      const follow = ScrollFollow.forElement(parent)
++      if (follow === undefined) return 'pending'
++      follow.hold(parent, owner)
++      follow.jump(parent, metrics, metrics.top + top - (saved?.top ?? 0))
++      this.heldGroups.add(parent)
++      const content = parent.querySelector('[data-step-process-content]')
++      if (content !== null) this.observer?.observe(content)
++    }
++    const metrics = this.metrics()
++    if (metrics === null) return 'pending'
++    const offset = paragraph.getBoundingClientRect().top - elements.scroller.getBoundingClientRect().top
++    const landing = this.write(metrics.top + offset - position.top, metrics, null)
++    if (landing === null) return 'pending'
++    const rect = paragraph.getBoundingClientRect(), viewport = elements.scroller.getBoundingClientRect()
++    let exact = Math.abs(rect.top - viewport.top - position.top) < 2
++    for (const group of position.groups) {
++      const body = [...this.heldGroups].find(candidate => candidate.closest<HTMLElement>('[data-chat-group-key]')?.dataset.chatGroupKey === group.key)
++      if (body !== undefined) exact &&= Math.abs(rect.top - body.getBoundingClientRect().top - group.top) < 2
++    }
++    const bottom = elements.composer?.getBoundingClientRect().top ?? viewport.bottom
++    let visibleTop = viewport.top, visibleBottom = bottom
++    for (const body of this.heldGroups) {
++      if (!body.contains(paragraph)) continue
++      const box = body.getBoundingClientRect()
++      visibleTop = Math.max(visibleTop, box.top)
++      visibleBottom = Math.min(visibleBottom, box.bottom)
++    }
++    if (!exact && (viewport.width === position.width && rect.height === position.height)) return 'changed'
++    if (rect.bottom <= visibleTop || rect.top >= visibleBottom) return 'changed'
++    this.heldPosition = position
++    const rowTop = row.getBoundingClientRect().top - viewport.top
++    return { landing: { ...landing, position: { anchorKey: position.anchorKey, anchorTop: rowTop, scrollTop: landing.metrics.top } }, exactOffset: exact }
++  }
++
++  /**
++   * Reconcile a fixed reading paragraph after a passive layout or content change.
++   * @returns whether a reading hold consumed the layout update.
++   */
++  preserveReading(): boolean {
++    if (this.heldPosition === null || this.readingOwner === null) return false
++    this.restoreReading(this.heldPosition, this.readingOwner)
++    return true
++  }
++
++  /**
++   * Replace compensation ownership before a restoration starts.
++   * @param owner - new transaction identity.
++   */
++  beginReadingRestore(owner: symbol): void {
++    this.releaseReading()
++    this.readingOwner = owner
++  }
++
++  /** Stop compensating geometry when the reader starts another reading gesture. */
++  stopReadingCompensation(): void { this.heldPosition = null }
++
++  /** Release outer compensation and every nested follow hold on explicit go-to-latest or unmount. */
++  releaseReading(owner?: symbol, rollback = false): void {
++    if (owner !== undefined && owner !== this.readingOwner) return
++    const released = this.readingOwner
++    this.readingOwner = null
++    this.heldPosition = null
++    if (this.focusedReading?.owner === released) {
++      if (this.focusedReading.element.ownerDocument.activeElement === this.focusedReading.element) this.focusedReading.element.blur()
++      this.focusedReading = null
++    }
++    if (released !== null) for (const element of this.revealed) requestReadingReveal(element, released, false)
++    this.revealed.clear()
++    this.revealedTurn = null
++    for (const body of this.heldGroups) {
++      if (released !== null) ScrollFollow.forElement(body)?.release(released, rollback)
++      const content = body.querySelector('[data-step-process-content]')
++      if (content !== null) this.observer?.unobserve(content)
++    }
++    this.heldGroups.clear()
++  }
++
++  /** @param owner - restoration whose nested holds have been committed. */
++  commitReading(owner: symbol): void {
++    if (this.readingOwner !== owner) return
++    for (const body of this.heldGroups) ScrollFollow.forElement(body)?.commitHold(owner)
++  }
++
++  /**
++   * Focus the restored paragraph without changing the scroll position or editor draft.
++   * @param position - semantic content whose restoration was confirmed.
++   */
++  focusReading(position: ChatReadingPosition, owner: symbol): void {
++    if (owner !== this.readingOwner) return
++    const paragraph = this.readingParagraph(position)
++    if (paragraph === null || !paragraph.isConnected) return
++    const hadTabIndex = paragraph.hasAttribute('tabindex')
++    if (!hadTabIndex) paragraph.setAttribute('tabindex', '-1')
++    this.focusedReading = { element: paragraph, owner }
++    paragraph.focus({ preventScroll: true })
++    if (!hadTabIndex) paragraph.removeAttribute('tabindex')
++  }
++
+   /** Retain the first eligible transcript seat in DOM order; selection reads no geometry. */
+   beginPaging(): void {
+     this.stopPreserving()
+@@ -428,6 +653,7 @@ export class ChatViewport {
+     if (this.elements === null || event.target !== this.elements.scroller) return
+     if (this.observation.landing !== null && this.elements.scroller.scrollTop === this.observation.top) return
+     this.invalidate()
++    if (this.preserveReading()) return
+     if (this.paging !== null) {
+       this.events?.resize()
+       return
+@@ -437,18 +663,30 @@ export class ChatViewport {
+   }
+ 
+   private readonly onScrollEnd = (event: Event): void => {
+-    if (event.target === this.elements?.scroller
+-      || (event.target instanceof HTMLElement && event.target.hasAttribute('data-step-process-body'))) this.events?.scrollEnd()
++    if (event.target === this.elements?.scroller) this.events?.scrollEnd(true)
++    else if (event.target instanceof HTMLElement && event.target.hasAttribute('data-step-process-body')) this.events?.scrollEnd(false)
+   }
+ 
+   private readonly onIntent = (event: Event): void => {
++    if (['pointerdown', 'keydown', 'touchstart'].includes(event.type)) this.events?.intentEnded?.()
+     if (event.type === 'keydown' || event.type === 'pointerdown') {
+       if (event.target instanceof Element && event.target.closest('[data-composer-seat]') !== null) return
+       if (event.type === 'keydown' && (!(event instanceof KeyboardEvent) || !SCROLL_KEYS.has(event.key))) return
+     }
+-    if (this.paging === null) return
++    let downward = false
++    if (event instanceof WheelEvent) downward = event.deltaY > 0
++    else if (typeof TouchEvent !== 'undefined' && event instanceof TouchEvent) {
++      const next = event.touches[0]?.clientY ?? null
++      downward = event.type === 'touchmove' && next !== null && this.touchY !== null && next < this.touchY
++      this.touchY = next
++    } else if (event instanceof KeyboardEvent) {
++      const editable = event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])') !== null
++      downward = !editable && !event.defaultPrevented
++        && (['ArrowDown', 'PageDown', 'End'].includes(event.key) || (event.key === ' ' && !event.shiftKey))
++    }
++    this.stopReadingCompensation()
+     this.stopPreserving()
+-    this.events?.interact()
++    this.events?.interact(downward ? this.metrics() ?? undefined : undefined)
+   }
+ }
+ 
+diff --git a/packages/client/ui-chat/src/client/chat/use-process-scroll.ts b/packages/client/ui-chat/src/client/chat/use-process-scroll.ts
+index 07fc32f..ef61c6b 100644
+--- a/packages/client/ui-chat/src/client/chat/use-process-scroll.ts
++++ b/packages/client/ui-chat/src/client/chat/use-process-scroll.ts
+@@ -1,5 +1,5 @@
+ /** Capped process-group scrolling and fades over the shared follow controller. */
+-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type DOMAttributes, type KeyboardEvent, type RefObject } from 'react'
++import { useCallback, useLayoutEffect, useMemo, useRef, useState, type DOMAttributes, type KeyboardEvent, type WheelEvent as ReactWheelEvent, type TouchEvent as ReactTouchEvent, type RefObject } from 'react'
+ import { scrollMetrics, useScrollFollow } from './use-scroll-follow.ts'
+ 
+ interface ScrollEdges { readonly canScrollUp: boolean; readonly canScrollDown: boolean }
+@@ -20,15 +20,17 @@ export function useProcessScroll(
+   bodyRef: RefObject<HTMLDivElement>, contentRef: RefObject<HTMLDivElement>, open: boolean, grouped: boolean,
+ ): {
+   edges: ScrollEdges
+-  events: Pick<DOMAttributes<HTMLDivElement>, 'onScroll' | 'onWheel' | 'onTouchStart' | 'onPointerDown' | 'onKeyDown'>
++  events: Pick<DOMAttributes<HTMLDivElement>, 'onScroll' | 'onWheel' | 'onTouchStart' | 'onTouchMove' | 'onPointerDown' | 'onKeyDown'>
+   initialize: (position: 'top' | 'bottom') => void
+ } {
+   const follow = useScrollFollow(false, 1)
++  const touchY = useRef<number | null>(null)
+   const initialPosition = useRef<'top' | 'bottom' | null>(null)
+   const [edges, setEdges] = useState<ScrollEdges>(AT_REST)
+   const initialize = useCallback((position: 'top' | 'bottom') => { initialPosition.current = position }, [])
+   const sync = useCallback((cause: 'resize' | 'scroll' | 'scrollend') => {
+     const body = bodyRef.current
++    if (cause === 'resize') follow.forgetReaderIntent()
+     let next = AT_REST
+     if (body !== null && body.closest('[hidden], [data-group-expanded-mode]') === null) {
+       let metrics = scrollMetrics(body)
+@@ -39,7 +41,7 @@ export function useProcessScroll(
+         initialPosition.current = null
+       } else {
+         const wasAnimating = follow.animating
+-        if (cause === 'scrollend') follow.settle(metrics)
++        if (cause === 'scrollend') { follow.settle(metrics); follow.forgetReaderIntent() }
+         else follow.sample(metrics)
+         if (follow.active && (cause === 'resize' || (cause === 'scrollend' && wasAnimating))) {
+           metrics = follow.toBottom(body, metrics, 'smooth')
+@@ -54,15 +56,32 @@ export function useProcessScroll(
+     const body = bodyRef.current
+     if (body !== null && follow.animating) follow.interrupt(body, scrollMetrics(body))
+   }, [bodyRef, follow])
++  const notice = useCallback((downward: boolean) => {
++    const body = bodyRef.current
++    follow.noticeReader(downward && body !== null ? scrollMetrics(body) : undefined)
++    interrupt()
++  }, [bodyRef, follow, interrupt])
+   const events = useMemo(() => ({
+     onScroll: () => { sync('scroll') },
+-    onWheel: interrupt,
+-    onTouchStart: interrupt,
+-    onPointerDown: interrupt,
++    onWheel: (event: ReactWheelEvent<HTMLDivElement>) => { notice(event.deltaY > 0) },
++    onTouchStart: (event: ReactTouchEvent<HTMLDivElement>) => {
++      touchY.current = event.touches[0]?.clientY ?? null
++      notice(false)
++    },
++    onTouchMove: (event: ReactTouchEvent<HTMLDivElement>) => {
++      const next = event.touches[0]?.clientY ?? null
++      notice(next !== null && touchY.current !== null && next < touchY.current)
++      touchY.current = next
++    },
++    onPointerDown: () => { notice(false) },
+     onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+-      if (!event.defaultPrevented && SCROLL_KEYS.has(event.key)) interrupt()
++      const editable = event.target instanceof Element
++        && event.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])') !== null
++      if (!event.defaultPrevented && SCROLL_KEYS.has(event.key)) {
++        notice(!editable && (['ArrowDown', 'PageDown', 'End'].includes(event.key) || (event.key === ' ' && !event.shiftKey)))
++      } else follow.forgetReaderIntent()
+     },
+-  }), [interrupt, sync])
++  }), [follow, notice, sync])
+ 
+   useLayoutEffect(() => {
+     interrupt()
+diff --git a/packages/client/ui-chat/src/client/chat/use-scroll-follow.ts b/packages/client/ui-chat/src/client/chat/use-scroll-follow.ts
+index 398e89e..79bfcc1 100644
+--- a/packages/client/ui-chat/src/client/chat/use-scroll-follow.ts
++++ b/packages/client/ui-chat/src/client/chat/use-scroll-follow.ts
+@@ -23,6 +23,10 @@ export class ScrollFollow {
+   private static readonly owners = new WeakMap<HTMLElement, ScrollFollow>()
+   private target: number | null = null
+   private sampledTop: number | undefined
++  private held: symbol | null = null
++  private readerIntent: { top: number; floor: number } | null = null
++  private readerVersion = 0
++  private beforeHold: { owner: symbol; following: boolean; held: symbol | null; readerVersion: number } | null = null
+ 
+   /**
+    * @param following - initial follow intent.
+@@ -75,8 +79,61 @@ export class ScrollFollow {
+     if (!active) this.target = null
+   }
+ 
+-  /** Adopt the next visible layout as a fresh reader position. */
++  /**
++   * Hold a restored reading position, including a position at the floor.
++   * @param element - scrollport whose outstanding native motion is cancelled.
++   * @param owner - restoration transaction or committed reading-hold identity.
++   */
++  hold(element: HTMLElement, owner: symbol): void {
++    if (this.held !== owner) {
++      this.beforeHold = { owner, following: this.following, held: this.held, readerVersion: this.readerVersion }
++    }
++    const top = element.scrollTop
++    element.scrollTo({ top, behavior: 'instant' })
++    this.target = null
++    this.sampledTop = element.scrollTop
++    this.following = false
++    this.held = owner
++    this.readerIntent = null
++  }
++
++  /**
++   * Release only the named hold, optionally restoring its uninterrupted prior policy.
++   * @param owner - transaction identity; omitted only by an explicit latest/reset operation.
++   * @param rollback - true for a failed transaction without newer reader intent.
++   */
++  release(owner?: symbol, rollback = false): void {
++    if (owner !== undefined && this.held !== owner) return
++    const previous = this.beforeHold
++    if (rollback && previous !== null && previous.owner === owner && previous.readerVersion === this.readerVersion) {
++      this.held = previous.held
++      this.following = previous.following
++    } else this.held = null
++    this.beforeHold = null
++    this.readerIntent = null
++  }
++
++  /** @param owner - transaction promoted to a lasting native reading hold. */
++  commitHold(owner: symbol): void {
++    if (this.held === owner) this.beforeHold = null
++  }
++
++  /**
++   * Record actual directional scroll input, separately from ordinary interaction.
++   * @param metrics - geometry at downward scroll input; omitted for clicks or other interruptions.
++   */
++  noticeReader(metrics?: ViewportMetrics): void {
++    this.readerVersion += 1
++    this.readerIntent = metrics === undefined ? null : { top: metrics.top, floor: metrics.floor }
++  }
++
++  /** Expire directional input before passive layout changes or after native scroll completion. */
++  forgetReaderIntent(): void { this.readerIntent = null }
++
++  /** Adopt the next layout without discarding an explicit reading hold. */
+   reset(): void {
++    if (this.held === null) this.release()
++    else this.forgetReaderIntent()
+     this.setFollowing(false)
+     this.sampledTop = undefined
+   }
+@@ -90,6 +147,18 @@ export class ScrollFollow {
+   sample(metrics: ViewportMetrics, movedByReader = this.sampledTop === undefined
+     || Math.abs(metrics.top - this.sampledTop) > 0.5): boolean {
+     this.sampledTop = metrics.top
++    if (this.held) {
++      const intent = this.readerIntent
++      if (intent === null || !movedByReader) return false
++      if (metrics.floor !== intent.floor || metrics.top < intent.top - 0.5) {
++        this.forgetReaderIntent()
++        return false
++      }
++      if (metrics.top <= intent.top + 0.5) return false
++      intent.top = metrics.top
++      if (!this.nearBottom(metrics)) return false
++      this.release()
++    }
+     if (!this.animating && movedByReader) this.following = this.nearBottom(metrics)
+     return this.active
+   }
+@@ -121,7 +190,7 @@ export class ScrollFollow {
+     else if (target !== metrics.top) element.scrollTop = target
+     const landed = { ...metrics, top: element.scrollTop }
+     this.sampledTop = landed.top
+-    this.following = this.nearBottom(landed)
++    this.following = !this.held && this.nearBottom(landed)
+     return landed
+   }
+ 
+@@ -135,6 +204,7 @@ export class ScrollFollow {
+    * @returns current geometry; smooth requests retain their starting position until native scroll delivery.
+    */
+   toBottom(element: HTMLElement, metrics: ViewportMetrics, behavior: 'instant' | 'smooth'): ViewportMetrics {
++    this.release()
+     this.following = true
+     if (behavior === 'instant' || metrics.top >= metrics.floor
+       || (!this.animating && this.nearBottom(metrics))) return this.jump(element, metrics, metrics.floor)
+diff --git a/packages/client/ui-chat/src/client/contract/reading.ts b/packages/client/ui-chat/src/client/contract/reading.ts
+new file mode 100644
+index 0000000..d4372d6
+--- /dev/null
++++ b/packages/client/ui-chat/src/client/contract/reading.ts
+@@ -0,0 +1,102 @@
++/** Window-local reading bookmarks and the native Chat owner's restoration capability. */
++import type { Branded } from '@deepseek-ai/dsh-brand'
++import type { SessionId } from '@deepseek-ai/dsh-session/types'
++
++/** Opaque identity issued by one mounted browser's reading service. */
++export type ChatReadingBookmarkId = Branded<'ChatReadingBookmarkId'>
++
++/** A transient bookmark; copying or serializing it does not preserve its authority. */
++export interface ChatReadingBookmark {
++  readonly id: ChatReadingBookmarkId
++  readonly sessionId: SessionId
++  /** Main Session selected while the original occurrence is revealed; null for a fixed standalone embedding. */
++  readonly navigationSessionId: SessionId | null
++}
++
++/** Exact completion or the reason no precise restoration was committed. */
++export type ChatReadingRestoreResult =
++  | { readonly kind: 'restored'; readonly exactOffset: boolean }
++  | { readonly kind: 'unavailable' | 'missing' | 'changed' | 'interrupted' }
++
++/** Stable native embedding lifetime and its source-directed navigation. */
++export interface ChatReadingRoute {
++  /** Main Session hosting this embedding. */
++  readonly mainSessionId: SessionId
++  /** Identity and lifetime of the actual embedding, independent of renderer mounts. */
++  readonly signal: AbortSignal
++  /** Whether revealing this occurrence requires changing the main Session. */
++  needsMainNavigation(): boolean
++  /**
++   * Reveal the existing occurrence without creating or substituting a tab.
++   * Any main navigation is initiated synchronously before the first await.
++   * @param sessionId - captured source Session.
++   * @param signal - restoration cancellation.
++   * @returns false after closure, replacement or incompatible navigation.
++   */
++  open(sessionId: SessionId, signal: AbortSignal): Promise<boolean>
++}
++
++/** Public browser service; native owners retain geometry, follow policy and instance state. */
++export interface UiChatReading {
++  /**
++   * Bind a native embedding's current DOM root to its stable navigation lifetime.
++   * @param element - embedding root supplied by its owning component.
++   * @param route - owner-provided reveal/navigation capability.
++   * @returns detachment of this mount; the route signal alone retires the occurrence.
++   */
++  connectOccurrence(element: Element, route: ChatReadingRoute): () => void
++  /**
++   * Capture the reading occurrence containing a user-action origin.
++   * @param origin - initiating control; the service resolves its registered native owner.
++   * @returns an opaque window-local bookmark, or null without visible identifiable content.
++   */
++  capture(origin: Element): ChatReadingBookmark | null
++  /**
++   * Restore the original live occurrence and hold its content even at the tail.
++   * Native main and registered embedded occurrences navigate through their own owners.
++   * Only explicit reader navigation to latest releases the resulting hold.
++   * @param bookmark - unmodified bookmark returned by this service.
++   * @param signal - caller-owned bounded cancellation, including superseding navigation.
++   * @returns the precise completion status; loading failures reject for caller-owned retry UI.
++   */
++  restore(bookmark: ChatReadingBookmark, signal: AbortSignal): Promise<ChatReadingRestoreResult>
++}
++
++/** Native paragraph identity and offsets, owned by the Chat viewport. */
++export interface ChatReadingPosition {
++  readonly anchorKey: string
++  readonly nodeKey: string
++  readonly paragraph: number
++  readonly tag: string
++  readonly text: string
++  readonly top: number
++  readonly width: number
++  readonly height: number
++  readonly groups: readonly { readonly key: string; readonly top: number }[]
++}
++
++/** One native restoration transaction, distinct from a committed reading hold. */
++export interface NativeChatRestoreTransaction {
++  /** @returns the current native landing, without committing lasting ownership. */
++  step(): 'pending' | 'missing' | 'changed' | 'interrupted' | { readonly exactOffset: boolean }
++  /** @returns whether this still-current transaction committed its reading hold. */
++  commit(): boolean
++  /** Remove this transaction's temporary ownership; a committed or superseded transaction is unchanged. */
++  cancel(): void
++}
++
++/** Package-owned mounted-view callbacks; consumers only use UiChatReading. */
++export interface NativeChatReader {
++  readonly element: HTMLElement
++  /** @returns the actual visible native content position. */
++  capture(): ChatReadingPosition | null
++  /** @param position - semantic target. @param signal - operation cancellation. @returns one restoration transaction. */
++  begin(position: ChatReadingPosition, signal: AbortSignal): NativeChatRestoreTransaction
++}
++
++declare module '@deepseek-ai/cordis' {
++  interface Context {
++    /** Native occurrence-addressed Chat reading, local to this browser window. */
++    uiChatReading: UiChatReading
++  }
++}
+diff --git a/packages/client/ui-chat/src/client/contract/slots.ts b/packages/client/ui-chat/src/client/contract/slots.ts
+index 5c7a8e3..c4b0825 100644
+--- a/packages/client/ui-chat/src/client/contract/slots.ts
++++ b/packages/client/ui-chat/src/client/contract/slots.ts
+@@ -1,3 +1,4 @@
++import type { NativeChatReader } from './reading.ts'
+ /** Chat-owned Slot declarations and composed component props. */
+ import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
+ import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
+@@ -230,6 +231,8 @@ export interface PerformanceUsageInjected {
+ 
+ /** Business callbacks injected into the Chat view. */
+ export interface ChatViewInjected {
++  /** Register this native mount with the window-local reading service. */
++  mountReading?: (reader: NativeChatReader) => () => void
+   hooks: {
+     /** Live presentation policy derived from the accepted work-details mode. */
+     presentation: ObservableSnapshot<ChatPresentationPolicy>
+diff --git a/packages/client/ui-chat/src/client/index.ts b/packages/client/ui-chat/src/client/index.ts
+index 6b361f1..030957a 100644
+--- a/packages/client/ui-chat/src/client/index.ts
++++ b/packages/client/ui-chat/src/client/index.ts
+@@ -62,3 +62,5 @@ declare module './contract/chat-nodes.ts' {
+   interface ChatNodeDataMap extends PublicChatNodeDataMap {}
+ }
+ export type { ProcessActivity, ProcessActivitySummary, ProcessGroupData } from './contract/process-groups.ts'
++
++export type { ChatReadingBookmark, ChatReadingBookmarkId, ChatReadingRestoreResult, ChatReadingRoute, UiChatReading } from './contract/reading.ts'
+diff --git a/packages/client/ui-chat/src/client/reading-service.ts b/packages/client/ui-chat/src/client/reading-service.ts
+new file mode 100644
+index 0000000..09dc45d
+--- /dev/null
++++ b/packages/client/ui-chat/src/client/reading-service.ts
+@@ -0,0 +1,270 @@
++/** Resolves native reading occurrences without exposing their DOM, hooks or internal controllers. */
++import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
++import type {
++  ChatReadingBookmark, ChatReadingBookmarkId, ChatReadingPosition,
++  ChatReadingRestoreResult, ChatReadingRoute, NativeChatReader, NativeChatRestoreTransaction, UiChatReading,
++} from './contract/reading.ts'
++
++/** A source failure distinguished from transient loading errors by the consumer. */
++export class ReadingSourceError extends Error {
++  /** @param kind - absent session or semantic content. */
++  constructor(readonly kind: 'unavailable' | 'missing') { super(kind) }
++}
++
++interface Occurrence {
++  owner: Element
++  route?: ChatReadingRoute
++  readonly main: boolean
++  mounted: { readonly sessionId: SessionId; readonly reader: NativeChatReader } | null
++  operation: AbortController | null
++  restoringSession: SessionId | null
++}
++
++interface SavedReading {
++  readonly occurrence: Occurrence
++  readonly position: ChatReadingPosition
++  readonly reader: NativeChatReader
++  readonly route: ChatReadingRoute | null
++  readonly seq: SessionSeq
++}
++
++/** The service receives native host operations from its apply-world owner. */
++export interface ReadingHost {
++  /** @param sessionId - source Session. @param nodeKey - semantic content. @returns its current sequence, if available. */
++  sequence(sessionId: SessionId, nodeKey: string): SessionSeq | undefined
++  /** @param sessionId - source Session. @param nodeKey - semantic content. @param seq - history bound. @param signal - cancellation. @returns the temporary reference release. */
++  prepare(sessionId: SessionId, nodeKey: string, seq: SessionSeq, signal: AbortSignal): Promise<() => void>
++  /** @param sessionId - existing Session to select in the main reading occurrence. */
++  open(sessionId: SessionId): void
++  /** @returns the signal of a newly owned main-navigation operation. */
++  beginNavigation(): AbortSignal
++}
++
++/** One browser's registry of mounted Chat readers and ephemeral bookmarks. */
++export class ChatReadingService implements UiChatReading {
++  private occurrences = new WeakMap<Element, Occurrence>()
++  private readers = new WeakMap<Element, Occurrence>()
++  private routeRoots = new WeakMap<Element, Occurrence>()
++  private routes = new WeakMap<AbortSignal, Occurrence>()
++  private bookmarks = new WeakMap<ChatReadingBookmark, SavedReading>()
++  private readonly operations = new Set<AbortController>()
++  private readonly completions = new Set<Promise<void>>()
++  private disposed = false
++
++  /** @param host - session loading and main-navigation capabilities owned by the host. */
++  constructor(private readonly host: ReadingHost) {}
++
++  connectOccurrence(element: Element, route: ChatReadingRoute): () => void {
++    if (this.disposed || route.signal.aborted) return () => {}
++    let occurrence = this.routes.get(route.signal)
++    if (occurrence === undefined) {
++      occurrence = { owner: element, route, main: false, mounted: null, operation: null, restoringSession: null }
++      this.routes.set(route.signal, occurrence)
++    } else { occurrence.owner = element; occurrence.route = route }
++    this.routeRoots.set(element, occurrence)
++    return () => { this.routeRoots.delete(element) }
++  }
++
++  /**
++   * Register one native Chat mount under its actual containing reading occurrence.
++   * @param sessionId - session displayed by this mount.
++   * @param reader - native capture, restore and focus callbacks.
++   * @returns removal of this mount without retiring its still-mounted main container.
++   */
++  mount(sessionId: SessionId, reader: NativeChatReader): () => void {
++    let live = true
++    let release = (): void => {}
++    queueMicrotask(() => {
++      if (live && !this.disposed) release = this.mountNow(sessionId, reader)
++    })
++    return () => { live = false; release() }
++  }
++
++  private mountNow(sessionId: SessionId, reader: NativeChatReader): () => void {
++    const content = reader.element.closest('[data-conversation-content]') ?? reader.element
++    const mainSlot = content.closest('[data-slot="main.conversation"]')
++    const main = mainSlot?.querySelector('[data-conversation-content]') === content
++    const owner = main ? mainSlot?.closest('[data-slot="main"]') ?? content : content
++    let occurrence: Occurrence | undefined
++    for (let element: Element | null = content; element !== null; element = element.parentElement) {
++      occurrence = this.routeRoots.get(element)
++      if (occurrence !== undefined) break
++    }
++    occurrence ??= this.occurrences.get(owner)
++    if (occurrence === undefined) {
++      occurrence = { owner, main, mounted: null, operation: null, restoringSession: null }
++      this.occurrences.set(owner, occurrence)
++    }
++    const mounted = { sessionId, reader }
++    const registered = occurrence
++    registered.mounted = mounted
++    this.readers.set(reader.element, registered)
++    return () => {
++      if (registered.mounted === mounted || registered.mounted?.reader.element !== reader.element) this.readers.delete(reader.element)
++      if (registered.mounted === mounted) {
++        registered.mounted = null
++        if (registered.restoringSession === sessionId) registered.operation?.abort()
++      }
++    }
++  }
++
++  capture(origin: Element): ChatReadingBookmark | null {
++    if (this.disposed || !origin.isConnected) return null
++    let occurrence: Occurrence | undefined
++    for (let element: Element | null = origin; element !== null; element = element.parentElement) {
++      occurrence = this.readers.get(element)
++      if (occurrence !== undefined) break
++    }
++    const mounted = occurrence?.mounted
++    if (occurrence === undefined || mounted == null || !occurrence.owner.isConnected || occurrence.route?.signal.aborted) return null
++    const position = mounted.reader.capture()
++    if (position === null) return null
++    const seq = this.host.sequence(mounted.sessionId, position.nodeKey)
++    if (seq === undefined) return null
++    const bookmark = Object.freeze({
++      id: crypto.randomUUID() as ChatReadingBookmarkId, sessionId: mounted.sessionId,
++      navigationSessionId: occurrence.main ? mounted.sessionId : occurrence.route?.mainSessionId ?? null,
++    })
++    this.bookmarks.set(bookmark, { occurrence, position, seq, reader: mounted.reader, route: occurrence.route ?? null })
++    return bookmark
++  }
++
++  async restore(bookmark: ChatReadingBookmark, signal: AbortSignal): Promise<ChatReadingRestoreResult> {
++    const saved = this.bookmarks.get(bookmark)
++    if (this.disposed || saved === undefined) return { kind: 'unavailable' }
++    const available = (): boolean => saved.route === null ? saved.occurrence.owner.isConnected : !saved.route.signal.aborted
++    if (!available()) return { kind: 'unavailable' }
++    const { occurrence, position, seq } = saved
++    if (!occurrence.main && saved.route === null && (occurrence.mounted?.sessionId !== bookmark.sessionId
++      || occurrence.mounted.reader !== saved.reader)) return { kind: 'unavailable' }
++    occurrence.operation?.abort()
++    const task = new AbortController()
++    occurrence.operation = task
++    occurrence.restoringSession = bookmark.sessionId
++    this.operations.add(task)
++    let complete!: () => void
++    const done = new Promise<void>(resolve => { complete = resolve })
++    this.completions.add(done)
++    const needsMainNavigation = occurrence.main || saved.route?.needsMainNavigation() === true
++    const abort = (): void => { task.abort(signal.reason) }
++    const routeClosed = (): void => { task.abort() }
++    saved.route?.signal.addEventListener('abort', routeClosed, { once: true })
++    signal.addEventListener('abort', abort, { once: true })
++    if (signal.aborted) abort()
++    const interrupted = (): void => { task.abort() }
++    const intent = (event: Event): void => {
++      if (event.type === 'keydown' && event instanceof KeyboardEvent
++        && ['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) return
++      interrupted()
++    }
++    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown', 'input'] as const
++    const document = occurrence.owner.ownerDocument
++    for (const type of events) document.addEventListener(type, intent, { capture: true, passive: true })
++    let stopNavigation = (): void => {}
++    let ownNavigation = false
++    const armNavigation = (): void => {
++      stopNavigation()
++      const navigation = this.host.beginNavigation()
++      const changed = (): void => { if (!ownNavigation) interrupted() }
++      navigation.addEventListener('abort', changed, { once: true })
++      stopNavigation = () => { navigation.removeEventListener('abort', changed) }
++    }
++    let release: (() => void) | undefined
++    const transaction: { current: { reader: NativeChatReader; restore: NativeChatRestoreTransaction } | null } = { current: null }
++    try {
++      task.signal.throwIfAborted()
++      if (needsMainNavigation) armNavigation()
++      task.signal.throwIfAborted()
++      release = await this.host.prepare(bookmark.sessionId, position.nodeKey, seq, task.signal)
++      task.signal.throwIfAborted()
++      if (!available()) return { kind: 'unavailable' }
++      if (saved.route !== null) {
++        if (!needsMainNavigation && saved.route.needsMainNavigation()) return { kind: 'interrupted' }
++        ownNavigation = true
++        let opening: Promise<boolean>
++        try {
++          opening = saved.route.open(bookmark.sessionId, task.signal)
++          if (needsMainNavigation) armNavigation()
++        } finally { ownNavigation = false }
++        if (!await opening) return { kind: 'unavailable' }
++        task.signal.throwIfAborted()
++      } else if (occurrence.mounted?.sessionId !== bookmark.sessionId) {
++        if (!occurrence.main) return { kind: 'unavailable' }
++        ownNavigation = true
++        try { this.host.open(bookmark.sessionId); armNavigation() }
++        finally { ownNavigation = false }
++      }
++      return await new Promise<ChatReadingRestoreResult>((resolve, reject) => {
++        let frame = 0
++        let stable: NativeChatReader | null = null
++        const finish = (result: ChatReadingRestoreResult): void => {
++          cancelAnimationFrame(frame)
++          task.signal.removeEventListener('abort', stop)
++          resolve(result)
++        }
++        const stop = (): void => { finish({ kind: available() ? 'interrupted' : 'unavailable' }) }
++        const sample = (): void => {
++          try {
++            if (task.signal.aborted) { stop(); return }
++            if (!available()) { finish({ kind: 'unavailable' }); return }
++            const mounted = occurrence.mounted
++            if (this.host.sequence(bookmark.sessionId, position.nodeKey) === undefined) { finish({ kind: 'missing' }); return }
++            if (mounted?.sessionId === bookmark.sessionId) {
++              if (transaction.current?.reader !== mounted.reader) {
++                transaction.current?.restore.cancel()
++                transaction.current = { reader: mounted.reader, restore: mounted.reader.begin(position, task.signal) }
++              }
++              const result = transaction.current.restore.step()
++              if (result === 'missing' || result === 'changed' || result === 'interrupted') { finish({ kind: result }); return }
++              if (result !== 'pending') {
++                if (stable === mounted.reader) {
++                  if (task.signal.aborted || !transaction.current.restore.commit()) { finish({ kind: 'interrupted' }); return }
++                  finish({ kind: 'restored', exactOffset: result.exactOffset })
++                  return
++                }
++                stable = mounted.reader
++              } else stable = null
++            } else stable = null
++            frame = requestAnimationFrame(sample)
++          } catch (error) {
++            cancelAnimationFrame(frame)
++            task.signal.removeEventListener('abort', stop)
++            reject(error)
++          }
++        }
++        task.signal.addEventListener('abort', stop, { once: true })
++        sample()
++      })
++    } catch (error) {
++      if (task.signal.aborted) return { kind: available() ? 'interrupted' : 'unavailable' }
++      if (error instanceof ReadingSourceError) return { kind: error.kind }
++      throw error
++    } finally {
++      transaction.current?.restore.cancel()
++      release?.()
++      stopNavigation()
++      signal.removeEventListener('abort', abort)
++      saved.route?.signal.removeEventListener('abort', routeClosed)
++      for (const type of events) document.removeEventListener(type, intent, true)
++      this.operations.delete(task)
++      this.completions.delete(done)
++      complete()
++      if (occurrence.operation === task) { occurrence.operation = null; occurrence.restoringSession = null }
++    }
++  }
++
++  /**
++   * Abort unfinished requests and retire all bookmarks when the plugin is unloaded.
++   * @returns completion after transaction cleanup and temporary reference release.
++   */
++  async dispose(): Promise<void> {
++    this.disposed = true
++    for (const task of this.operations) task.abort()
++    this.readers = new WeakMap()
++    this.routeRoots = new WeakMap()
++    this.routes = new WeakMap()
++    this.occurrences = new WeakMap()
++    this.bookmarks = new WeakMap()
++    await Promise.all([...this.completions])
++  }
++}
+diff --git a/packages/client/ui-sidebar-right/src/client/service.ts b/packages/client/ui-sidebar-right/src/client/service.ts
+index c4bfc12..51d75db 100644
+--- a/packages/client/ui-sidebar-right/src/client/service.ts
++++ b/packages/client/ui-sidebar-right/src/client/service.ts
+@@ -45,7 +45,7 @@ import { pageAddress } from './contract/seed.ts'
+ import type { SidebarRightTabClaim, SidebarRightTabRegistry } from './tab-registry.ts'
+ import { canCloseTab, type SidebarRightState, type SurfaceState } from './stores.ts'
+ import type { createSidebarRightStore } from './stores.ts'
+-import { TabDomain, type PinResource } from './tab-domain.ts'
++import { TabDomain, type PinResource, type TabOccurrence } from './tab-domain.ts'
+ import { SidebarTabInventory } from './tab-inventory.ts'
+ 
+ /** The seat's bound action set. */
+@@ -236,6 +236,12 @@ export interface ISidebarRight {
+    * @param tabId - the tab; one that does not exist is left alone.
+    */
+   focus(tabId: TabId): void
++  /**
++   * Reveal the exact existing tab lifetime without substituting another same-address tab.
++   * @param occurrence - original tab lifetime.
++   * @returns whether the existing tab was revealed in its on-screen parent Session.
++   */
++  revealOccurrence(occurrence: TabOccurrence): boolean
+   /**
+    * Split a docked pane to its right and seed the new pane, under the same
+    * pane budget and room rule as the strip's split control. Recorded when it
+@@ -493,6 +499,24 @@ export class SidebarRightController implements ISidebarRight {
+     actions.focusTab(sessionId, tabId)
+   }
+ 
++  /**
++   * Reveal one existing tab lifetime without address deduplication or a replacement record.
++   * @param occurrence - previously captured exact tab lifetime.
++   * @returns false when its parent is not on screen or the record has closed or been replaced.
++   */
++  revealOccurrence(occurrence: TabOccurrence): boolean {
++    if (occurrence.signal.aborted || this.mounted.getSnapshot() !== occurrence.sessionId) return false
++    const surface = this.mountedSurface()
++    if (surface?.layout.tabs[occurrence.tabId] === undefined
++      || this.tabDomain.occurrence(occurrence.sessionId, { id: occurrence.tabId }) !== occurrence) return false
++    const { actions } = this.require()
++    actions.focusTab(occurrence.sessionId, occurrence.tabId)
++    if (findTabPane(surface.layout, occurrence.tabId).host === 'dock' && !surface.layout.expanded) {
++      actions.toggleExpanded(occurrence.sessionId)
++    }
++    return true
++  }
++
+   /**
+    * Capture the page owning current DOM focus; outside focus never uses layout history.
+    * @param element - explicit input target, including an embedding iframe; defaults to live document focus.
+diff --git a/packages/client/ui-subagent/src/client/index.ts b/packages/client/ui-subagent/src/client/index.ts
+index e244909..48b7a5c 100644
+--- a/packages/client/ui-subagent/src/client/index.ts
++++ b/packages/client/ui-subagent/src/client/index.ts
+@@ -31,7 +31,7 @@ export type {
+ } from './SubagentReadOnlyComposer.tsx'
+ 
+ /** Required services for subagent presentation and navigation. */
+-export const inject = ['sessions', 'uiWorkspace', 'slots', 'locale', 'sidebarRight']
++export const inject = ['sessions', 'uiWorkspace', 'slots', 'locale', 'sidebarRight', 'uiChatReading']
+ 
+ /** Claim the composer for one-shot history or an unavailable continuation owner. */
+ function selectReadOnlySubagent(owner: ComposerChainProps): SubagentReadOnlyMatch | null {
+diff --git a/packages/client/ui-subagent/src/client/sidebar-chat/index.tsx b/packages/client/ui-subagent/src/client/sidebar-chat/index.tsx
+index ddc5bed..b17664d 100644
+--- a/packages/client/ui-subagent/src/client/sidebar-chat/index.tsx
++++ b/packages/client/ui-subagent/src/client/sidebar-chat/index.tsx
+@@ -1,13 +1,14 @@
+ /** Right-Sidebar presentation of an existing subagent Conversation. */
++import { useCallback, useRef } from 'react'
+ import type { Context } from '@deepseek-ai/cordis'
+ import type {
+   ISessions, SessionReference,
+ } from '@deepseek-ai/dsh-api-session-controller/client'
+ import type { ResourceProvider } from '@deepseek-ai/dsh-client-resources/client'
+ import type { ConversationViewsProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+-import type { SidebarRightTabDefinition } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
++import type { SidebarRightTabDefinition, TabId } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+ import type {
+-  PropsRenderFactories, PropsRenderSlots, PropsRuntime, TranslateNS,
++  InjectFace, PropsRenderFactories, PropsRenderSlots, PropsRuntime, TranslateNS,
+ } from '@deepseek-ai/dsh-client-ui-slots'
+ import type { SessionId } from '@deepseek-ai/dsh-session/types'
+ import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
+@@ -148,15 +149,25 @@ export function ConversationSlotPanel({
+ }
+ 
+ /** Props supplied to the parent-Session Sidebar tab body. */
++interface SidebarChatReadingInjected {
++  connectReading?: (element: HTMLElement, tabId: TabId) => () => void
++}
++
++/** Props of the parent-Session tab body and its native reading-route registration. */
+ export type SidebarChatTabProps =
+-  PropsRuntime<'sidebar.right.pane.tab'> & PropsRenderSlots<'sidebar.chat.conversation'>
++  InjectFace<SidebarChatReadingInjected> & PropsRuntime<'sidebar.right.pane.tab'> & PropsRenderSlots<'sidebar.chat.conversation'>
+ 
+ /** Bind a chat resource's child reference around its Conversation slot. */
+-export function SidebarChatTab({ useResource, useTabInfo, SessionProvider, renderSlot }: SidebarChatTabProps) {
++export function SidebarChatTab({ useResource, useTabInfo, SessionProvider, renderSlot, connectReading }: SidebarChatTabProps) {
+   const { tab } = useTabInfo()
+   const resource = useResource<'subagentchat'>(tab.contentId)
++  const detachReading = useRef<(() => void) | null>(null)
++  const readingRoot = useCallback((element: HTMLDivElement | null) => {
++    detachReading.current?.()
++    detachReading.current = element === null ? null : connectReading?.(element, tab.id) ?? null
++  }, [connectReading, tab.id, tab.navigation.revision])
+   return (
+-    <div className={css.root} data-sidebar-chat="">
++    <div ref={readingRoot} className={css.root} data-sidebar-chat="">
+       {resource.value === undefined
+         ? null
+         : (
+@@ -195,6 +206,48 @@ export function registerSidebarChat(ctx: Context, t: TranslateNS<typeof NS>): vo
+     name: 'sidebar.right.pane.tab',
+     key: SUBAGENT_CHAT_ID,
+     children: { 'sidebar.chat.conversation': { kind: 'single', scope: 'session' } },
++    inject: (parentSessionId: SessionId): SidebarChatReadingInjected => ({
++      connectReading: (element, tabId) => {
++        const occurrence = ctx.sidebarRight.tabDomain.occurrence(parentSessionId, { id: tabId })
++        const navigation = occurrence.navigation.getSnapshot()
++        const address = parseSubagentChatAddress(navigation.address)
++        const live = (): boolean => !occurrence.signal.aborted
++          && occurrence.navigation.getSnapshot().revision === navigation.revision
++          && ctx.sidebarRight.tabsIn(parentSessionId).some(tab => tab.id === tabId)
++        return ctx.uiChatReading.connectOccurrence(element, {
++          signal: occurrence.signal,
++          mainSessionId: parentSessionId,
++          needsMainNavigation: () => ctx.sidebarRight.mounted.getSnapshot() !== parentSessionId,
++          open: async (sourceSessionId, signal) => {
++            if (signal.aborted || !live() || address?.childSessionId !== sourceSessionId) return false
++            if (ctx.sidebarRight.mounted.getSnapshot() !== parentSessionId) ctx.uiWorkspace.openSession(parentSessionId)
++            const ready = await new Promise<boolean>(resolve => {
++              let settled = false
++              const releases: Array<() => void> = []
++              const finish = (value: boolean): void => {
++                if (settled) return
++                settled = true
++                for (const release of releases) release()
++                signal.removeEventListener('abort', sample)
++                occurrence.signal.removeEventListener('abort', sample)
++                resolve(value)
++              }
++              const sample = (): void => {
++                if (signal.aborted || !live()) finish(false)
++                else if (ctx.sidebarRight.mounted.getSnapshot() === parentSessionId) finish(true)
++              }
++              releases.push(ctx.sidebarRight.mounted.subscribe(sample), occurrence.navigation.subscribe(sample))
++              if (settled) { for (const release of releases) release(); return }
++              signal.addEventListener('abort', sample, { once: true })
++              occurrence.signal.addEventListener('abort', sample, { once: true })
++              sample()
++            })
++            if (!ready || signal.aborted || !live()) return false
++            return ctx.sidebarRight.revealOccurrence(occurrence)
++          },
++        })
++      },
++    }),
+   }, SidebarChatTab)), 'ui-subagent: Sidebar chat body')
+   ctx.effect(() => ctx.slots.inject('sidebar.chat.conversation', () => ctx.slots.register({
+     name: 'sidebar.chat.conversation',
+diff --git a/packages/client/ui-subagent/tests/browser-plugin.client.spec.ts b/packages/client/ui-subagent/tests/browser-plugin.client.spec.ts
+index 23aa61b..86a43fc 100644
+--- a/packages/client/ui-subagent/tests/browser-plugin.client.spec.ts
++++ b/packages/client/ui-subagent/tests/browser-plugin.client.spec.ts
+@@ -86,6 +86,11 @@ async function fullBench(sessions: SessionSummary[]) {
+     },
+   } as never)
+   ctx.provide('remote', { $on: () => () => {} } as never)
++  ctx.provide('uiChatReading', {
++    capture: () => { throw new Error('catalog fixture does not capture reading positions') },
++    restore: async () => { throw new Error('catalog fixture does not restore reading positions') },
++    connectOccurrence: () => { throw new Error('catalog fixture does not mount a reading occurrence') },
++  })
+   ctx.provide('configForms', { developerTools: { enabled: createSnapshotStore(true) }, get: () => stubConfigForm().scope } as never)
+   await provideSlotFaces(ctx)
+   await ctx.plugin({ inject: localeInject, apply: applyLocale }).await()
+@@ -105,7 +110,7 @@ const FAMILY: SessionSummary[] = [
+ 
+ describe('apply', () => {
+   it('declares the services it binds', () => {
+-    expect(inject).toEqual(['sessions', 'uiWorkspace', 'slots', 'locale', 'sidebarRight'])
++    expect(inject).toEqual(['sessions', 'uiWorkspace', 'slots', 'locale', 'sidebarRight', 'uiChatReading'])
+   })
+ 
+   it('registers catalog actions and selects read-only subagent composers from session facts', async () => {
+diff --git a/packages/client/ui-subagent/tests/sidebar-chat.client.spec.tsx b/packages/client/ui-subagent/tests/sidebar-chat.client.spec.tsx
+index 7b67420..efb6ed8 100644
+--- a/packages/client/ui-subagent/tests/sidebar-chat.client.spec.tsx
++++ b/packages/client/ui-subagent/tests/sidebar-chat.client.spec.tsx
+@@ -150,7 +150,11 @@ describe('Sidebar chat components', () => {
+     const SessionProvider = vi.fn(({ children }: { children: ReactNode }) => <>{children}</>)
+     const renderSlot = vi.fn(() => <span>child conversation</span>)
+     const props = {
+-      useTabInfo: () => ({ tab: { contentId: subagentChatAddress(ADDRESS) } }),
++      useTabInfo: () => ({ tab: {
++        id: 'child-chat',
++        contentId: subagentChatAddress(ADDRESS),
++        navigation: { address: subagentChatAddress(ADDRESS), params: undefined, revision: 1 },
++      } }),
+       useResource: () => snapshot,
+       SessionProvider,
+       renderSlot,

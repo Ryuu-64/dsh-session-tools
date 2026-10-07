@@ -9,7 +9,7 @@ permissions:
 jobs:
   real-web:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,12 +19,38 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: npm install --global --ignore-scripts pnpm@11.19.0
-      - run: npx playwright install chromium --only-shell
+      - run: npm install --global --ignore-scripts pnpm@11.7.0
+      - uses: actions/checkout@v4
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: 639ed015397290b3745d163aafe02ffee4aa3f84
+          path: .ci-host
+          persist-credentials: false
+      - name: Reconstruct reviewed host tree
+        run: node scripts/reading-return/host-artifacts.mjs apply .ci-host evidence/host
+      - name: Install locked host dependencies
+        working-directory: .ci-host
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Build host and client contracts and bundles
+        working-directory: .ci-host
+        run: |
+          node --max-old-space-size=4096 node_modules/typescript/bin/tsc -b tsconfig.host.json
+          node node_modules/tsdown/dist/run.mjs --env.DSH_BUILD_FACE host
+          node node_modules/typescript/bin/tsc -b tsconfig.client.json
+          node node_modules/tsdown/dist/run.mjs --env.DSH_BUILD_FACE client
+      - name: Existing affected GUI checks and metadata
+        working-directory: .ci-host
+        run: |
+          node node_modules/vitest/vitest.mjs run packages/client/ui-chat packages/client/ui-sidebar-right packages/client/ui-subagent
+          node --import tsx/esm scripts/verify-client-packages.ts
+          node --import tsx/esm scripts/verify-translation-pairing.ts packages/client/ui-chat/README.md
+      - name: Package exact companion artifacts
+        run: node scripts/reading-return/host-artifacts.mjs pack .ci-host evidence/host
+      - run: npx playwright install --with-deps chromium
       - run: |
           mkdir -p evidence/artifact
           npm pack --ignore-scripts --pack-destination evidence/artifact
-          node scripts/reading-return/real-host-browser.mjs 0.2.0-rc.2 evidence/artifact/ryuu-64-dsh-session-tools-0.6.0.tgz evidence/browser
+          node scripts/reading-return/real-host-browser.mjs 0.2.0-rc.2 evidence/artifact/ryuu-64-dsh-session-tools-0.6.0.tgz evidence/browser evidence/host/manifest.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

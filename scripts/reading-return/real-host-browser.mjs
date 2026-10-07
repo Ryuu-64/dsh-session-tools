@@ -13,12 +13,28 @@ const npmCommand = args => ({ command: 'npm', args });
 const secrets = new Set();
 const redact = createRedactor(secrets);
 
-const [version, artifactArg, outputArg] = process.argv.slice(2);
+const [version, artifactArg, outputArg, hostArtifactsArg] = process.argv.slice(2);
 const versions = Object.keys(JSON.parse(fs.readFileSync(new URL('./vendor-versions.json', import.meta.url))));
 assert.ok(versions.includes(version), 'use an explicit acceptance target');
 const artifact = path.resolve(artifactArg);
 const output = path.resolve(outputArg);
 fs.mkdirSync(output, { recursive: true });
+const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+const hostArtifacts = hostArtifactsArg ? JSON.parse(fs.readFileSync(path.resolve(hostArtifactsArg))) : null;
+const candidateBundles = new Map();
+if (hostArtifacts) {
+  assert.equal(version, '0.2.0-rc.2', 'local host artifacts require the researched RC2 base');
+  assert.equal(hostArtifacts.base, '639ed015397290b3745d163aafe02ffee4aa3f84');
+  assert.deepEqual(Object.keys(hostArtifacts.packages).sort(), ['@deepseek-ai/dsh-client-ui-chat', '@deepseek-ai/dsh-client-ui-sidebar-right', '@deepseek-ai/dsh-client-ui-subagent']);
+  for (const [name, item] of Object.entries(hostArtifacts.packages)) {
+    assert.ok(path.isAbsolute(item.tarball), 'host tarball path must be absolute');
+    assert.equal(digest(fs.readFileSync(item.tarball)), item.sha256, `host artifact changed: ${name}`);
+    const bundle = execFileSync('tar', ['-xOf', item.tarball, 'package/lib/client.js']);
+    assert.equal(digest(bundle), item.clientSha256, `host bundle changed: ${name}`);
+    candidateBundles.set(name, bundle);
+  }
+  fs.writeFileSync(path.join(output, 'host-artifacts.json'), JSON.stringify(hostArtifacts, null, 2));
+}
 const hash = () => createHash('sha256').update(fs.readFileSync(artifact)).digest('hex');
 const artifactSha256 = hash();
 const run = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || '/tmp', 'session-tools-return-web-'));
@@ -38,6 +54,9 @@ for (const name of Object.keys(env)) {
 }
 Object.assign(env, {
   HOME: home,
+  XDG_DATA_HOME: path.join(home, '.local/share'),
+  XDG_CACHE_HOME: path.join(home, '.cache'),
+  XDG_CONFIG_HOME: path.join(home, '.config'),
   DSH_HOME: path.join(home, '.dsh'),
   DSH_AGENTS_HOME: path.join(home, '.agents'),
   DSH_BUNDLED_SKILL_DIR: path.join(home, '.bundled-skills'),
@@ -92,6 +111,10 @@ while (queue.length) {
   }
 }
 manifest.overrides = overrides;
+for (const [name, item] of Object.entries(hostArtifacts?.packages || {})) {
+  manifest.dependencies[name] = `file:${item.tarball}`;
+  overrides[name] = `file:${item.tarball}`;
+}
 fs.writeFileSync(path.join(output, 'target-manifests.json'), JSON.stringify(manifests, null, 2));
 fs.writeFileSync(path.join(runtime, 'package.json'), JSON.stringify(manifest));
 npmInstall(runtime, 'exact-install.log');
@@ -119,6 +142,14 @@ const installLog = fs.openSync(path.join(output, 'plugin-install.log'), 'w');
 try {
   execFileSync(process.execPath, [bin, 'plugin', '--profile', 'web', 'add', artifact, '--ignore-scripts'], { cwd: runtime, env, stdio: ['ignore', installLog, installLog], timeout: 300_000 });
 } finally { fs.closeSync(installLog); }
+const installedHost = {};
+for (const [name, bundle] of candidateBundles) {
+  const installed = runtimeRequire.resolve(`${name}/client`);
+  const sha256 = digest(fs.readFileSync(installed));
+  assert.equal(sha256, digest(bundle), `profile installation replaced candidate: ${name}`);
+  installedHost[name] = { path: installed, sha256 };
+}
+fs.writeFileSync(path.join(output, 'installed-host-artifacts.json'), JSON.stringify(installedHost, null, 2));
 assert.equal(hash(), artifactSha256);
 const seeded = await seedHistory(runtimeRequire, home, workspace);
 const patch = path.join(home, '.dsh/profiles/web/cordis.patch.yml');
@@ -134,6 +165,12 @@ server.stderr.on('data', data => serverLog += data);
 let browser, context, page;
 const errors = [], consoleErrors = [];
 const report = { version, artifactSha256, bootstrap: 'pending', readingReturn: 'not-run', seeds: seeded };
+const receivedBundles = new Set();
+const responses = [];
+const prepareBundle = bytes => {
+  let source = bytes.toString('utf8').replace(/(?:\r?\n)?\/\/# sourceURL=([^\r\n]+)(?:\r?\n)?$/, '').replace(/(?:\r?\n)?\/\/# sourceMappingURL=[^\r\n]*(?:\r?\n)?$/, '');
+  return source.endsWith('\n') ? source : `${source}\n`;
+};
 try {
   let url;
   for (let elapsed = 0; elapsed < 180; elapsed++) {
@@ -151,9 +188,24 @@ try {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   assert.ok(ready, 'host did not become HTTP-ready');
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, channel: 'chromium' });
+  report.browserVersion = browser.version();
   context = await browser.newContext({ viewport: { width: 1400, height: 900 }, locale: 'en-US' });
   page = await context.newPage();
+  page.on('response', response => {
+    if (!new URL(response.url()).pathname.startsWith('/plugins/')) return;
+    responses.push((async () => {
+      const body = await response.body();
+      const source = body.toString('utf8');
+      for (const [name, bundle] of candidateBundles) {
+        if (!source.includes(prepareBundle(bundle))) continue;
+        receivedBundles.add(name);
+        const filename = `loaded-${name.split('/').at(-1)}.js`;
+        fs.writeFileSync(path.join(output, filename), body);
+        installedHost[name].response = { path: new URL(response.url()).pathname, sha256: digest(body), filename };
+      }
+    })().catch(error => { errors.push(`candidate host response: ${error.message}`); }));
+  });
   await page.addInitScript(() => {
     const events = []; window.__readingReturnInput = events;
     for (const type of ['click', 'keydown']) window.addEventListener(type, event => {
@@ -176,6 +228,8 @@ try {
   await later.waitFor({ state: 'visible', timeout: 30000 }); await later.click();
   report.bootstrap = 'passed';
   report.scenarios = await exercise(page, browser, url, output);
+  await Promise.all(responses);
+  assert.deepEqual([...receivedBundles].sort(), [...candidateBundles.keys()].sort(), 'browser did not load every candidate host bundle');
   assert.deepEqual(errors, [], 'unhandled browser errors');
   report.readingReturn = 'passed';
 } catch (error) {
@@ -205,6 +259,7 @@ try {
   await new Promise(resolve => setTimeout(resolve, 500));
   if (server.exitCode === null) server.kill('SIGKILL');
   fs.writeFileSync(path.join(output, 'server.log'), redact(serverLog));
+  fs.writeFileSync(path.join(output, 'installed-host-artifacts.json'), JSON.stringify(installedHost, null, 2));
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 }
