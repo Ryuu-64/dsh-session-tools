@@ -167,7 +167,7 @@ assert.equal(hash(), artifactSha256);
 const seeded = await seedHistory(runtimeRequire, home, workspace);
 const patch = path.join(home, '.dsh/profiles/web/cordis.patch.yml');
 fs.writeFileSync(patch, JSON.stringify([
-  { id: 'reading-return-fixture', name: pathToFileURL(path.join(fixture, 'index.mjs')).href },
+  { insert: [{ id: 'reading-return-fixture', name: pathToFileURL(path.join(fixture, 'index.mjs')).href }] },
   { id: 'session-title-llm', disabled: true },
   { id: 'session-query-sqlite', config: { path: queryPath, openAt: 'first-search' } },
   { id: 'ui-chat', config: { transcriptView: 'verbose' } },
