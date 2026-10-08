@@ -88,10 +88,10 @@ window.__ModuleLoader__.load({
           }
           const button = (label, onClick, extra = {}) => h('button', { type: 'button', onClick, ...extra }, label);
           return h('section', { 'data-reader-instance': instance.current, 'data-reader-session': id, 'data-reader-mode': mode,
-            style: { padding: 12, border: '1px solid #999', background: '#fff', color: '#17202a' } },
+            style: { width: '100%', maxWidth: 720, minWidth: 0, marginInline: 'auto', boxSizing: 'border-box', padding: 12, border: '1px solid #999', background: '#fff', color: '#17202a' } },
             h('strong', null, `Reading PoC ${copy ? 'independent copy' : ''}: ${catalog.byId[id]?.displayTitle ?? id}`),
             h('div', null, 'Text-only plugin view. The native composer below still targets the outer session.'),
-            h('div', { style: { display: 'flex', gap: 8, margin: '8px 0' } },
+            h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, margin: '8px 0' } },
               h('select', { 'aria-label': `Reading session ${copy}`, value: id, onChange: e => navigate(e.target.value) },
                 catalog.ids.map(value => h('option', { key: value, value }, catalog.byId[value]?.displayTitle ?? value))),
               button('Return to source', () => navigate(initialId), { disabled: id === initialId }),

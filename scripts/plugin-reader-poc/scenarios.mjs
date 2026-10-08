@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import fs from 'node:fs';
 const A = 'session-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const B = 'session-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const pause = page => page.waitForTimeout(350);
@@ -17,6 +18,8 @@ function same(captured, current) {
   assert.ok(Math.abs(current.offset - captured.offset) < 2, JSON.stringify({captured,current}));
 }
 export async function exercisePoc(page, output, { control, uninstall }) {
+  const checkpoints = {};
+  const record = (name, value) => { checkpoints[name] = value; fs.writeFileSync(path.join(output, 'checkpoints.json'), JSON.stringify(checkpoints, null, 2)); };
   const search = page.getByRole('button', { name: 'Search sessions' });
   await search.waitFor({ timeout: 30000 }); await search.click();
   await page.getByRole('textbox', { name: /^(Search sessions\.\.\.|Search session names)$/ }).fill('RETURN_A_USER_1');
@@ -26,7 +29,7 @@ export async function exercisePoc(page, output, { control, uninstall }) {
   const reader = page.locator('[data-reader-instance]').first();
   await reader.getByText('RETURN_A_USER_80', { exact: false }).waitFor(); await pause(page);
   await reader.getByRole('button', {name: 'Go to latest', exact: true}).click();
-  const captured = await measure(reader); assert.ok(captured.atTail);
+  const captured = await measure(reader); record('captured', captured); assert.ok(captured.atTail);
   await page.screenshot({ path: path.join(output, '01-original-tail.png') });
   await reader.getByRole('combobox', {name:'Reading session 0'}).selectOption(B);
   await reader.getByText('RETURN_B_USER_80', { exact: false }).waitFor();
@@ -36,13 +39,13 @@ export async function exercisePoc(page, output, { control, uninstall }) {
   await reader.getByRole('button', {name:'Return to source',exact:true}).click();
   await reader.getByText('RETURN_A_USER_80', { exact:false }).waitFor();
   await reader.getByText('POC_STREAM_A_2', {exact:false}).waitFor(); await pause(page);
-  const returned = await measure(reader,captured.key); same(captured,returned);
+  const returned = await measure(reader,captured.key); record('returned', returned); same(captured,returned);
   assert.equal(await reader.getAttribute('data-reader-mode'),'holding'); assert.ok(!returned.atTail);
   assert.ok(returned.scrollHeight > captured.scrollHeight);
   await page.screenshot({path:path.join(output,'02-return-held-after-growth.png')});
   await control({op:'release',count:2});
   await reader.getByText('POC_STREAM_A_4',{exact:false}).waitFor(); await pause(page);
-  const continued = await measure(reader,captured.key); same(captured,continued); assert.ok(continued.scrollHeight > returned.scrollHeight);
+  const continued = await measure(reader,captured.key); record('continued', continued); same(captured,continued); assert.ok(continued.scrollHeight > returned.scrollHeight);
   await page.screenshot({path:path.join(output,'03-held-during-continuing-stream.png')});
   // Same session, two actual simultaneously mounted reader instances.
   await reader.getByRole('button',{name:'Open independent reader',exact:true}).click();
@@ -56,7 +59,7 @@ export async function exercisePoc(page, output, { control, uninstall }) {
   await reader.getByRole('button',{name:'Go to latest',exact:true}).click();
   assert.ok((await measure(reader)).atTail);
   await control({op:'release',count:2}); await reader.getByText('POC_STREAM_A_7',{exact:false}).waitFor(); await pause(page);
-  const latest=await measure(reader); assert.ok(latest.atTail);
+  const latest=await measure(reader); record('latest', latest); assert.ok(latest.atTail);
   await page.screenshot({path:path.join(output,'04-explicit-latest-follow.png')});
   uninstall();
   await page.getByRole('tab',{name:'Reading PoC',exact:true}).waitFor({state:'hidden',timeout:30000});
