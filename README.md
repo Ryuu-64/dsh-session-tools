@@ -8,7 +8,7 @@
 
 需要已能正常使用的 DSH 和模型配置，以及 **Node.js 22.19+（22 系列）或 24.x**。`dsh plugin` 使用 pnpm 管理插件；请确保它在命令行中可用。
 
-**先确认版本：** npm 发布版 `0.6.0` 的宿主回归基线是 DSH `0.1.5-rc.2`，不含 `0.2.0-rc.2` 适配。该适配已合入仓库 `main`，尚未发布到 npm；使用 DSH 0.2 时，请先看[源码安装与兼容说明](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md)。不声明支持 `0.2.1-alpha.1` 或未知后续版本。
+**先确认版本：** npm 发布版 `0.6.0` 适用于 DSH `0.1.5-rc.2`，不支持 `0.2.0-rc.2`。DSH `0.2.0-rc.2` 用户请按[源码安装说明](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md)安装仓库版本。暂不支持 `0.2.1-alpha.1` 或未知后续版本。
 
 在终端中安装到你使用的宿主配置（profile），下面以 `web` 为例：
 
@@ -55,12 +55,7 @@ dsh plugin --profile web add @ryuu-64/dsh-session-tools@0.6.0
 
 更多参数、状态和出错处理见[工具参考](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)。
 
-## 文档与反馈
-
-- [安装、源码使用与卸载](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md)
-- [版本、升级注意事项与宿主要求](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/compatibility.md)
-- [工具参数与消息回执](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)
-- [开发与回归检查](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/development.md)
+## 支持与交流
 
 遇到问题或有建议，请[提交 Issue](https://github.com/Ryuu-64/dsh-session-tools/issues)。请附上 DSH、Node.js 和插件版本、安装方式，以及可复现的步骤；不要贴 API 密钥或私密对话。
 
