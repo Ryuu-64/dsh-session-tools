@@ -145,7 +145,16 @@ export async function exercisePoc(page, output, { control, uninstall }) {
     items: [...node.querySelectorAll('ul > li')].map(item => item.textContent),
   })));
   record('markdownRoles', { headers:await markdown.getByRole('columnheader').count(), hiddenHeaders:await markdown.getByRole('columnheader',{includeHidden:true}).count(), items:await markdown.getByRole('listitem').count(), hiddenItems:await markdown.getByRole('listitem',{includeHidden:true}).count() });
-  assert.equal(await markdown.getByRole('columnheader').count(),2, 'Markdown table exposes two column headers');
+  // Playwright 1.56.1 classifies scope-less th as cell. Check the official
+  // renderer's actual semantic header structure, content and visible layout.
+  const table = markdown.locator('table');
+  assert.equal(await table.count(),1, 'one intact Markdown table');
+  assert.deepEqual(await table.locator('thead th').allTextContents(), ['MD_COL_A','MD_COL_B']);
+  assert.deepEqual(await table.locator('tbody td').allTextContents(), ['x','y']);
+  await table.scrollIntoViewIfNeeded();
+  const tableBox = await table.boundingBox();
+  assert.ok(tableBox && tableBox.width > 0 && tableBox.height > 0, 'Markdown table has visible layout');
+  await page.screenshot({path:path.join(output,'markdown-code-and-table.png')});
   assert.equal(await markdown.getByRole('listitem').count(),2, 'Markdown list exposes two list items');
   const heldLine = reader.getByText('MD_HOLD_ANCHOR unique stable reading line.',{exact:true});
   await heldLine.scrollIntoViewIfNeeded();
