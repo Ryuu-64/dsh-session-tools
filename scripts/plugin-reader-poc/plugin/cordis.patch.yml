@@ -1,0 +1,3 @@
+- insert:
+    - id: reading-view-poc
+      name: '@ryuu-64/dsh-reading-view-poc'

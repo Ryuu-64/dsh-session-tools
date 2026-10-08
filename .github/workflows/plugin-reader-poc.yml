@@ -1,0 +1,34 @@
+name: Plugin-only reader PoC
+on:
+  push:
+    branches: [poc/plugin-only-reader]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm install --global --ignore-scripts pnpm@11.7.0
+      - run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Package isolated plugin and exercise unchanged official host
+        run: |
+          mkdir -p evidence/plugin-reader
+          npm pack ./scripts/plugin-reader-poc/plugin --ignore-scripts --pack-destination evidence/plugin-reader
+          node scripts/plugin-reader-poc/real-host-browser.mjs 0.2.0-rc.2 evidence/plugin-reader/ryuu-64-dsh-reading-view-poc-0.0.0.tgz evidence/plugin-reader/browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: plugin-only-reader-rc2
+          path: evidence/plugin-reader/
+          retention-days: 7
