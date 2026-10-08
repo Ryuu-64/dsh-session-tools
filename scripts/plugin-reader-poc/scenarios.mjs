@@ -55,6 +55,8 @@ export async function exercisePoc(page, output, { control, uninstall }) {
   assert.ok((await measure(copy)).atTail); same(captured,await measure(reader,captured.key));
   await control({op:'release',count:1}); await copy.getByText('POC_STREAM_A_5',{exact:false}).waitFor(); await pause(page);
   assert.ok((await measure(copy)).atTail); same(captured,await measure(reader,captured.key));
+  record('instanceIsolation', { source: await measure(reader,captured.key), independent: await measure(copy) });
+  await page.screenshot({path:path.join(output,'independent-readers.png')});
   await reader.getByRole('button',{name:'Close independent reader',exact:true}).click();
   await reader.getByRole('button',{name:'Go to latest',exact:true}).click();
   assert.ok((await measure(reader)).atTail);
@@ -63,9 +65,10 @@ export async function exercisePoc(page, output, { control, uninstall }) {
   await page.screenshot({path:path.join(output,'04-explicit-latest-follow.png')});
   uninstall();
   await page.getByRole('tab',{name:'Reading PoC',exact:true}).waitFor({state:'hidden',timeout:30000});
-  await page.locator('[data-chat-flow]').waitFor({timeout:30000});
+  await page.locator(`[data-conversation-session="${A}"] [data-chat-flow]`).first().waitFor({timeout:30000});
   await page.getByText('POC_STREAM_A_7',{exact:false}).last().waitFor();
   assert.equal(await page.locator('[data-reader-instance]').count(),0);
+  record('uninstalled', { pluginReaderCount: await page.locator('[data-reader-instance]').count(), nativeChat: true });
   await page.screenshot({path:path.join(output,'05-uninstalled-native-chat-restored.png')});
   return { captured, returned, continued, latest, instanceIsolation:'passed', unloadNativeRestored:'passed', scope:'internal reader A/B navigation only; native session navigation remount restoration not implemented' };
 }
