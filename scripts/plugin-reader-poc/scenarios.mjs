@@ -138,8 +138,15 @@ export async function exercisePoc(page, output, { control, uninstall }) {
   const markdown = reader.locator('[data-reader-markdown]').filter({has: page.getByRole('heading',{name:'MD_HEADING',exact:true})});
   assert.equal(await markdown.locator('pre code').count(),1, 'one intact fenced code block');
   assert.match(await markdown.locator('pre code').innerText(),/const first = 1;[\s\S]*const third = 3;/);
-  assert.equal(await markdown.getByRole('columnheader').count(),2);
-  assert.equal(await markdown.getByRole('listitem').count(),2);
+  record('markdownStructure', await markdown.evaluate(node => ({
+    html: node.innerHTML,
+    tables: node.querySelectorAll('table').length,
+    headers: [...node.querySelectorAll('thead th')].map(cell => ({ text:cell.textContent, role:cell.getAttribute('role'), scope:cell.getAttribute('scope'), display:getComputedStyle(cell).display, visibility:getComputedStyle(cell).visibility, visible:cell.checkVisibility(), hiddenAncestor:cell.closest('[aria-hidden]')?.outerHTML.slice(0,200) })),
+    items: [...node.querySelectorAll('ul > li')].map(item => item.textContent),
+  })));
+  record('markdownRoles', { headers:await markdown.getByRole('columnheader').count(), hiddenHeaders:await markdown.getByRole('columnheader',{includeHidden:true}).count(), items:await markdown.getByRole('listitem').count(), hiddenItems:await markdown.getByRole('listitem',{includeHidden:true}).count() });
+  assert.equal(await markdown.getByRole('columnheader').count(),2, 'Markdown table exposes two column headers');
+  assert.equal(await markdown.getByRole('listitem').count(),2, 'Markdown list exposes two list items');
   const heldLine = reader.getByText('MD_HOLD_ANCHOR unique stable reading line.',{exact:true});
   await heldLine.scrollIntoViewIfNeeded();
   const linePosition = () => heldLine.evaluate(node => {
