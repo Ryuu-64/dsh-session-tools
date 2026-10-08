@@ -64,4 +64,6 @@ dsh plugin --profile web add @ryuu-64/dsh-session-tools@0.6.0
 
 遇到问题或有建议，请[提交 Issue](https://github.com/Ryuu-64/dsh-session-tools/issues)。请附上 DSH、Node.js 和插件版本、安装方式，以及可复现的步骤；不要贴 API 密钥或私密对话。
 
+QQ 交流群：`1129212995`。群聊用于使用交流和社区互助；需要持续跟踪的问题请先提交 Issue，再把 Issue 链接发到群里。群聊不替代 Issue 中可检索的正式记录。
+
 由 [Ryuu-64](https://github.com/Ryuu-64) 维护，采用 [MIT 许可证](LICENSE)。
