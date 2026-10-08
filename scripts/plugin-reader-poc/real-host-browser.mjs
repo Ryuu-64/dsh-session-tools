@@ -15,14 +15,19 @@ const npmCommand = args => ({ command: 'npm', args: ['--prefer-offline', '--fetc
 const secrets = new Set();
 const redact = createRedactor(secrets);
 
-const [version, artifactArg, outputArg, hostArtifactsArg] = process.argv.slice(2);
+const [version, artifactArg, outputArg, option, sessionToolsArg, ...extra] = process.argv.slice(2);
 const versions = Object.keys(JSON.parse(fs.readFileSync(new URL('./vendor-versions.json', import.meta.url))));
 assert.ok(versions.includes(version), 'use an explicit acceptance target');
 const artifact = path.resolve(artifactArg);
 const output = path.resolve(outputArg);
 fs.mkdirSync(output, { recursive: true });
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
-assert.equal(hostArtifactsArg, undefined, 'Host patches are forbidden in this PoC');
+assert.equal(option, '--session-tools-artifact', 'Only the paired session-tools artifact is accepted; host patches are forbidden');
+assert.equal(extra.length, 0);
+const sessionToolsArtifact = path.resolve(sessionToolsArg);
+const sessionToolsManifest = JSON.parse(execFileSync('tar', ['-xOf', sessionToolsArtifact, 'package/package.json'], { encoding: 'utf8' }));
+assert.equal(sessionToolsManifest.name, '@ryuu-64/dsh-session-tools');
+const sessionToolsSha256 = digest(fs.readFileSync(sessionToolsArtifact));
 assert.equal(version, '0.2.0-rc.2');
 const officialBundles = new Map();
 const hash = () => createHash('sha256').update(fs.readFileSync(artifact)).digest('hex');
@@ -166,6 +171,7 @@ function verifyOfficialFiles() {
 const bin = runtimeRequire.resolve('@deepseek-ai/dsh/package.json').replace(/package.json$/, 'lib/bin.js');
 const installLog = fs.openSync(path.join(output, 'plugin-install.log'), 'w');
 try {
+  execFileSync(process.execPath, [bin, 'plugin', '--profile', 'web', 'add', sessionToolsArtifact, '--ignore-scripts'], { cwd: runtime, env, stdio: ['ignore', installLog, installLog], timeout: 300_000 });
   execFileSync(process.execPath, [bin, 'plugin', '--profile', 'web', 'add', artifact, '--ignore-scripts'], { cwd: runtime, env, stdio: ['ignore', installLog, installLog], timeout: 300_000 });
 } finally { fs.closeSync(installLog); }
 
@@ -192,7 +198,7 @@ server.stdout.on('data', data => serverLog += data);
 server.stderr.on('data', data => serverLog += data);
 let browser, context, page;
 const errors = [], consoleErrors = [];
-const report = { version, artifactSha256, bootstrap: 'pending', readingReturn: 'not-run', scope: 'plugin-owned text-only reader, not native Chat integration', seeds: seeded };
+const report = { version, artifactSha256, sessionToolsSha256, bootstrap: 'pending', readingReturn: 'not-run', scope: 'optional reading-mode card return; native Chat rendering is unchanged', seeds: seeded };
 const receivedBundles = new Set();
 const responses = [];
 const prepareBundle = bytes => {

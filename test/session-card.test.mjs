@@ -92,3 +92,18 @@ test('an unavailable navigation target is caught and never replaced by a title I
   assert.deepEqual(requested, [target, target]);
   assert.equal(card.errors.length, 2);
 });
+
+
+// The optional reading view consumes the same component through this service.
+test('public card composition reuses native card identity and injected navigation', async t => {
+  const card = await sessionCard(t);
+  const opened = [];
+  const props = { block: settled({ sessionId: target, title: 'Shared card' }), openSession: id => opened.push(id) };
+  const element = card.services.sessionToolsCards.renderCreatedSession(props);
+  assert.equal(element.type, card.component, 'reader must reuse the real registered card component');
+  const tree = element.type(element.props);
+  const button = tree.props.children.find(child => child?.type === 'button');
+  button.props.onClick();
+  assert.deepEqual(opened, [target]);
+  assert.deepEqual(card.opened, [], 'reader navigation never changes native card default binding');
+});

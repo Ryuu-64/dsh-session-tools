@@ -12,26 +12,52 @@ holds. Only the explicit "Go to latest" action enables following. No host DOM
 scroll writes, host component replacements, React internal lookups, mutation
 observers or scroll-correction timers are used.
 
+## Optional reading-mode card return
+
+This experiment now pairs the source version of `dsh-session-tools` with the
+optional reader plugin. The main plugin exposes its own `SessionCreateRow`
+through `sessionToolsCards.renderCreatedSession`; both views use the same card
+component and the same durable result metadata. No host Slot entry is copied,
+mutated or redeclared.
+
+1. In source Session A, explicitly select the **Reading PoC** tab.
+2. Click the existing created-session card in that reader.
+3. The official `uiWorkspace.openSession` navigates the main Conversation to B.
+   B keeps its existing view, including native Chat; it is not forced into a reader.
+4. The title area offers **返回 RETURN_A 的原位置**. It navigates back through the
+   same official API. A gets a new reader mount and restores its captured content
+   and offset while holding position through further streamed output.
+5. **Go to latest** resumes following. Another native navigation, explicit cancel,
+   or plugin unload discards the pending return and releases its source reference.
+
+Ordinary cards clicked in native Chat retain their original navigation behavior.
+They do **not** promise exact source return. This is an opt-in reading-mode
+extension, not a replacement of default Chat or a native-Chat scroll interception.
+
 ## Scope and remaining integration work
 
-- A/B navigation is **inside the reader**. Native `session_create` cards, main
-  navigation and Sidebar navigation are not integrated.
-- The native composer still targets the outer Session. The reader labels this;
-  tests read only and do not use that composer.
-- State lives in a mounted reader. Switching native Sessions or views, reload,
-  or uninstall/remount can destroy it. Cross-remount recovery is not implemented.
-- Production integration needs an explicit public navigation/occurrence owner,
-  per-occurrence return records, cleanup and history loading. A Session-ID-only
-  map would incorrectly join simultaneous readers.
-- This tab's removal lets the official view selector fall back to Chat. It does
-  not itself provide cross-remount persistence.
-- Rendering is text only. Native Markdown, images, tool cards, process folding,
-  grouping, forks, rails, prompt inspection and Sidebar resources are not reused.
-  Chat's child slots and injected props prevent treating internal components as
-  a drop-in complete Chat with a new scroll owner.
-- Only loaded text paragraphs are anchored. Missing-history recovery, source
-  rewrites, image/font/reflow changes, touch and scrollbar follow cancellation
-  are outside this small test. Wheel and scrolling keys leave follow mode.
+- The implemented return owner is the main navigation in one browser/plugin root.
+  The independent reader-copy demo retains its separate scroll state but does not
+  originate exact main-navigation returns. Sidebar return ownership is not added.
+- A reload or plugin unload discards pending return state. Missing history or an
+  unavailable source view reports failure rather than guessing a successful offset.
+- Internal A/B controls remain in this experimental reader solely to preserve the
+  earlier mechanism tests. The new card test separately proves native Session
+  navigation, absence of the source reader in B, and a different source mount on return.
+- The native composer addresses the outer Session. During real main navigation
+  it therefore follows A/B correctly. The old internal A/B demo labels its limitation.
+- Most content is still plain text, with the shared created-session cards added.
+  Other tool cards, images, process folding, groups, fork controls and rails are
+  not integrated. Official `MarkdownText` is a public reusable primitive, but
+  faithful block-level rendering and anchor/reflow handling remain separate work.
+- Native tool/image rendering lives under owner-specific declared child slots.
+  Registering those same children in a second view conflicts; the renderer rejects
+  calls outside an entry's declared children. This implementation reuses only the
+  card component owned by this plugin, not private host component objects.
+- Only loaded content is anchored. Source rewrites, image/font/reflow changes,
+  touch and scrollbar follow cancellation remain outside this experiment.
+- Removing the optional reader restores the official Chat selection. The
+  companion session-tools plugin can remain installed with its ordinary cards.
 
 ## Official API evidence
 
@@ -70,10 +96,11 @@ From this repository:
     npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.56.1
     npx playwright install --with-deps chromium
     mkdir -p evidence/plugin-reader
+    npm pack --ignore-scripts --pack-destination evidence/plugin-reader
     npm pack ./scripts/plugin-reader-poc/plugin --ignore-scripts --pack-destination evidence/plugin-reader
     node scripts/plugin-reader-poc/real-host-browser.mjs 0.2.0-rc.2 \
       evidence/plugin-reader/ryuu-64-dsh-reading-view-poc-0.0.0.tgz \
-      evidence/plugin-reader/browser
+      evidence/plugin-reader/browser --session-tools-artifact evidence/plugin-reader/ryuu-64-dsh-session-tools-0.6.0.tgz
 
 The runner rejects any host-patch argument. It pins official DSH dependencies,
 installs without scripts, downloads independent official registry tarballs,
@@ -83,7 +110,10 @@ contain those original official bundles. It rechecks official files after plugin
 installation and removal. No old host candidate artifacts are loaded.
 
 The workflow runs only on the separate experiment branch or explicit dispatch.
-No merge, upstream submission or npm publication is included. A browser-startup
+No merge, upstream submission or npm publication is included. The package version
+remains unchanged because this is an unreleased source experiment. A browser-startup
 failure is not a passing UI test. The first expected UI evidence covers old-tail
 A → B → A, growth while away and after returning, explicit latest, independent
-reader instances, and uninstall restoring native Chat.
+reader instances, and uninstall restoring native Chat. The additional integration
+case uses the real shared card, native A/B navigation, source unmount/remount and
+continued source streaming; a native-Chat card baseline stays unchanged.

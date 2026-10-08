@@ -20,11 +20,23 @@ function same(captured, current) {
 export async function exercisePoc(page, output, { control, uninstall }) {
   const checkpoints = {};
   const record = (name, value) => { checkpoints[name] = value; fs.writeFileSync(path.join(output, 'checkpoints.json'), JSON.stringify(checkpoints, null, 2)); };
-  const search = page.getByRole('button', { name: 'Search sessions' });
-  await search.waitFor({ timeout: 30000 }); await search.click();
-  await page.getByRole('textbox', { name: /^(Search sessions\.\.\.|Search session names)$/ }).fill('RETURN_A_USER_1');
-  await page.getByRole('tree', { name: 'Search results' }).getByRole('treeitem').first().click();
-  await page.getByText('RETURN_A_USER_80', { exact: false }).last().waitFor();
+  async function openSession(label) {
+    const search = page.getByRole('button', { name: 'Search sessions' });
+    await search.waitFor({ timeout: 30000 });
+    if (await search.getAttribute('aria-expanded') !== 'true') await search.click();
+    await page.getByRole('textbox', { name: /^(Search sessions\.\.\.|Search session names)$/ }).fill(`RETURN_${label}_USER_1`);
+    await page.getByRole('tree', { name: 'Search results' }).getByRole('treeitem').first().click();
+    await page.getByText(`RETURN_${label}_USER_80`, { exact: false }).last().waitFor();
+  }
+  await openSession('A');
+  // The original plugin card keeps its normal native navigation semantics.
+  const nativeCard = page.locator(`[data-conversation-session="${A}"]`).getByRole('button', { name: 'RETURN_B', exact: true }).last();
+  await nativeCard.scrollIntoViewIfNeeded(); await nativeCard.click();
+  await page.locator(`[data-conversation-session="${B}"]`).waitFor();
+  assert.equal(await page.locator('[data-reader-return]').count(), 0);
+  assert.equal(await page.locator('[data-reader-instance]').count(), 0);
+  record('ordinaryNativeCard', 'unchanged native navigation; no reader return');
+  await openSession('A');
   await page.getByRole('tab', { name: 'Reading PoC', exact: true }).click();
   const reader = page.locator('[data-reader-instance]').first();
   await reader.getByText('RETURN_A_USER_80', { exact: false }).waitFor(); await pause(page);
@@ -63,12 +75,64 @@ export async function exercisePoc(page, output, { control, uninstall }) {
   await control({op:'release',count:2}); await reader.getByText('POC_STREAM_A_7',{exact:false}).waitFor(); await pause(page);
   const latest=await measure(reader); record('latest', latest); assert.ok(latest.atTail);
   await page.screenshot({path:path.join(output,'04-explicit-latest-follow.png')});
+  // Actual shared session-tools card, actual UIWorkspace navigation, and a
+  // newly mounted source Reader. This is deliberately separate from internal A/B.
+  const sourceMount = await reader.getAttribute('data-reader-instance');
+  const actualCard = reader.locator('[data-reader-tool]').getByRole('button', { name: 'RETURN_B', exact: true }).last();
+  await actualCard.scrollIntoViewIfNeeded(); await actualCard.focus();
+  const cardCaptured = await measure(reader);
+  await reader.evaluate(element => { window.__sourceReaderElement = element; });
+  await actualCard.click();
+  await page.locator(`[data-conversation-session="${B}"]`).waitFor();
+  await page.getByText('RETURN_B_USER_80', { exact: false }).last().waitFor();
+  assert.equal(await page.locator('[data-reader-instance]').count(), 0, 'source reader must leave the DOM during native navigation');
+  const nativeBack = page.getByRole('button', { name: '返回 RETURN_A 的原位置', exact: true });
+  await nativeBack.waitFor();
+  await control({op:'stream',id:A,marker:'CARD_STREAM_A'}); await page.waitForTimeout(800);
+  await control({op:'release',count:2}); await page.waitForTimeout(800);
+  await page.screenshot({path:path.join(output,'card-target-native-B.png')});
+  await nativeBack.click();
+  await page.locator(`[data-conversation-session="${A}"]`).waitFor();
+  await reader.getByText('CARD_STREAM_A_2',{exact:false}).waitFor(); await pause(page);
+  const restoredMount = await reader.getAttribute('data-reader-instance');
+  assert.notEqual(restoredMount, sourceMount, 'source reader must be a new component occurrence');
+  assert.ok(await reader.evaluate(element => element !== window.__sourceReaderElement), 'source reader DOM must be remounted');
+  const cardReturned = await measure(reader,cardCaptured.key); same(cardCaptured,cardReturned);
+  assert.equal(await reader.getAttribute('data-reader-mode'),'holding');
+  await nativeBack.waitFor({state:'hidden'});
+  await control({op:'release',count:2}); await reader.getByText('CARD_STREAM_A_4',{exact:false}).waitFor(); await pause(page);
+  const cardContinued = await measure(reader,cardCaptured.key); same(cardCaptured,cardContinued);
+  assert.ok(cardContinued.scrollHeight > cardReturned.scrollHeight);
+  record('nativeCardRemount', { sourceMount, restoredMount, captured: cardCaptured, returned: cardReturned, continued: cardContinued });
+  await page.screenshot({path:path.join(output,'card-source-remounted-held.png')});
+  await reader.getByRole('button',{name:'Go to latest',exact:true}).click();
+  await control({op:'release',count:3}); await reader.getByText('CARD_STREAM_A_7',{exact:false}).waitFor(); await pause(page);
+  assert.ok((await measure(reader)).atTail);
+  // Explicit cancellation and unrelated native navigation must invalidate the
+  // pending return, so it cannot later pull the user back to an older source.
+  for (const interruption of ['cancel', 'other-navigation']) {
+    const cardAgain = reader.locator('[data-reader-tool]').getByRole('button', {name:'RETURN_B',exact:true}).last();
+    await cardAgain.scrollIntoViewIfNeeded(); await cardAgain.click();
+    await page.locator(`[data-conversation-session="${B}"]`).waitFor();
+    await page.getByRole('button',{name:'返回 RETURN_A 的原位置',exact:true}).waitFor();
+    if (interruption === 'cancel') {
+      await page.getByRole('button',{name:'取消返回',exact:true}).click();
+      await page.locator('[data-reader-return]').waitFor({state:'hidden'});
+      assert.equal(await page.locator('[data-reader-return]').count(),0, 'cancel alone must discard the return point');
+      await page.locator(`[data-slot="main"] [data-conversation-session="${B}"]`).waitFor();
+      assert.equal(await page.locator(`[data-slot="main"] [data-conversation-session="${A}"]`).count(),0, 'cancel must not navigate away from B');
+    }
+    await openSession('A');
+    await reader.getByText('CARD_STREAM_A_7',{exact:false}).waitFor(); await pause(page);
+    assert.equal(await page.locator('[data-reader-return]').count(),0, interruption + ' must discard the old return point');
+    record(interruption, 'pending return invalidated; user-selected A remains active');
+  }
   uninstall();
   await page.getByRole('tab',{name:'Reading PoC',exact:true}).waitFor({state:'hidden',timeout:30000});
   await page.locator(`[data-conversation-session="${A}"] [data-chat-flow]`).first().waitFor({timeout:30000});
-  await page.getByText('POC_STREAM_A_7',{exact:false}).last().waitFor();
+  await page.getByText('CARD_STREAM_A_7',{exact:false}).last().waitFor();
   assert.equal(await page.locator('[data-reader-instance]').count(),0);
   record('uninstalled', { pluginReaderCount: await page.locator('[data-reader-instance]').count(), nativeChat: true });
   await page.screenshot({path:path.join(output,'05-uninstalled-native-chat-restored.png')});
-  return { captured, returned, continued, latest, instanceIsolation:'passed', unloadNativeRestored:'passed', scope:'internal reader A/B navigation only; native session navigation remount restoration not implemented' };
+  return { captured, returned, continued, latest, instanceIsolation:'passed', unloadNativeRestored:'passed', nativeCardRemount: checkpoints.nativeCardRemount, scope:'optional reading mode source to native target and remounted reader return; ordinary native Chat source remains unchanged' };
 }

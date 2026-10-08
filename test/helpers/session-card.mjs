@@ -10,6 +10,7 @@ export async function sessionCard(t, { path = new URL('../../lib/client.js', imp
   let client;
   const errors = [];
   const opened = [];
+  const services = {};
   vm.runInNewContext(await readFile(path, 'utf8'), {
     console: { error: (...args) => errors.push(args) },
     window: { __ModuleLoader__: { load(definition) {
@@ -20,6 +21,7 @@ export async function sessionCard(t, { path = new URL('../../lib/client.js', imp
   const slots = new SlotCore();
   t.after(slots.register({ name: 'root', children: { 'tool.call.toolview': { kind: 'keyed', scope: 'session' } } }, () => null));
   client.apply({
+    provide(name, value) { services[name] = value; },
     slots: {
       inject(name, register) { assert.ok(slots.spec(name)); t.after(register()); },
       register: (options, component) => slots.register(options, component),
@@ -29,7 +31,7 @@ export async function sessionCard(t, { path = new URL('../../lib/client.js', imp
   const [entry] = slots.entriesOfSlot('tool.call.toolview');
   assert.equal(entry.options.key, 'session_create');
   return {
-    opened, errors,
+    opened, errors, services, component: entry.component,
     render(block, extra = {}) {
       const props = { block, slot: { injected: entry.inject() }, ...extra };
       const tree = entry.component(props);
@@ -61,3 +63,4 @@ export function toolResult(event) {
   const message = event.data.message;
   return message.role === 'tool' ? message : message.content[0];
 }
+
