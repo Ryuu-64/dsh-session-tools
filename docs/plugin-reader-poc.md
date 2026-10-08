@@ -1,16 +1,20 @@
 # Plugin-only reading position feasibility test
 
-This is a separately installed, removable, **text-only Reading PoC view** on
+This is a separately installed, removable, **optional Markdown Reading PoC view** on
 official DSH 0.2.0-rc.2. It does not replace the native Chat view. A new
 `conversation.view` entry uses public Session retention and Conversation `chat`
 snapshot APIs for real Session data and streamed assistant text. The plugin owns
-only its small plain-text reader and its own scrollport.
+its reader and its own scrollport. Assistant prose is rendered by the official
+public `MarkdownText` primitive as complete content blocks, not split paragraphs.
 
-Each mounted reader keeps independent content-anchor and pixel-offset records.
+Each mounted reader keeps independent content-anchor and pixel-offset records. Text quotes are addressed within a stable
+message/block key, with an occurrence index for repeated text. The reader corrects
+its own scroll position when Markdown reflow moves that held text.
 Departure saves position even at the old tail. Returning restores once, then
 holds. Only the explicit "Go to latest" action enables following. No host DOM
 scroll writes, host component replacements, React internal lookups, mutation
-observers or scroll-correction timers are used.
+observers or scroll-correction timers are used. A `ResizeObserver` watches only the plugin-owned
+transcript, not host DOM; it preserves the held text through size changes.
 
 ## Optional reading-mode card return
 
@@ -46,16 +50,22 @@ extension, not a replacement of default Chat or a native-Chat scroll interceptio
   navigation, absence of the source reader in B, and a different source mount on return.
 - The native composer addresses the outer Session. During real main navigation
   it therefore follows A/B correctly. The old internal A/B demo labels its limitation.
-- Most content is still plain text, with the shared created-session cards added.
-  Other tool cards, images, process folding, groups, fork controls and rails are
-  not integrated. Official `MarkdownText` is a public reusable primitive, but
-  faithful block-level rendering and anchor/reflow handling remain separate work.
+- Assistant Markdown uses the public `MarkdownText({ text, streaming, labels })`
+  contract with one stable labels object. Complete code fences, lists, tables and
+  reference links keep their original block context. User text remains plain.
+- Other tool cards, attachment galleries, process groups, fork controls and rails
+  remain available in native Chat. Local-file Markdown link/image resolvers are
+  not supplied. Ordinary remote links and inline HTTP(S) images follow the official
+  primitive's behavior; this is separate from the host attachment gallery.
 - Native tool/image rendering lives under owner-specific declared child slots.
   Registering those same children in a second view conflicts; the renderer rejects
   calls outside an entry's declared children. This implementation reuses only the
   card component owned by this plugin, not private host component objects.
-- Only loaded content is anchored. Source rewrites, image/font/reflow changes,
-  touch and scrollbar follow cancellation remain outside this experiment.
+- Only loaded content is anchored. The test now covers upstream Markdown reflow
+  when reference links resolve at stream settlement. If the exact held quote
+  disappears, correction stops with a visible notice instead of guessing. Arbitrary
+  source rewrites, mathematical-text anchors and horizontal code scrolling are not
+  covered. Own-scroll events refresh the held point after wheel/key scrolling.
 - Removing the optional reader restores the official Chat selection. The
   companion session-tools plugin can remain installed with its ordinary cards.
 
@@ -80,7 +90,8 @@ All source references are at
 
 Fixtures come from the already published
 [0c76cecb5acf160c3c6083ed8c129ee15b7ba23e](https://github.com/Ryuu-64/dsh-session-tools/tree/0c76cecb5acf160c3c6083ed8c129ee15b7ba23e/scripts/reading-return).
-`fixture-host.mjs` and `vendor-versions.json` are unchanged;
+`vendor-versions.json` is unchanged. The host fixture additionally supplies a
+controlled eight-chunk Markdown stream (no external model);
 `seed-history.mjs` is just the imports, identities and `seedHistory` function from
 that commit's `browser-scenarios.mjs`, without its native-Chat test cases.
 The fixture has no browser client. Its only control channel is the isolated
@@ -117,3 +128,13 @@ A → B → A, growth while away and after returning, explicit latest, independe
 reader instances, and uninstall restoring native Chat. The additional integration
 case uses the real shared card, native A/B navigation, source unmount/remount and
 continued source streaming; a native-Chat card baseline stays unchanged.
+
+## Markdown verification
+
+The existing fixture streams a heading, repeated unresolved reference links,
+a held marker, a list, a code fence spanning chunks and blank lines, and a table.
+The last chunk defines the references. The test checks actual semantic HTML,
+returns to the held marker while still streaming, then verifies that reference
+resolution shrinks the paragraph above it. Its visible offset must remain stable
+while scrollTop changes, proving reflow correction rather than a frozen scrollbar.
+All prior native-card, remount, streaming, copy, cancel and unload cases remain.

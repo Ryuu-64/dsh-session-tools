@@ -30,7 +30,17 @@ export function apply(ctx) {
           }
           if (disposed) throw new Error('fixture disposed');
           options.signal?.throwIfAborted();
-          const delta = current.kind === 'append'
+          const markdownChunks = [
+            '# MD_HEADING\n\n' + '[MD_REF][reading-ref] '.repeat(45) + '\n\nMD_HOLD_ANCHOR unique stable reading line.\n\n- MD_LIST_FIRST\n- MD_LIST_SECOND\n\n```js\nconst first = 1;\n',
+            'const second = 2;\n\nconst third = 3;\n',
+            '```\n\n| MD_COL_A | MD_COL_B |\n| --- | --- |\n| x | y |\n\n',
+            '## MD_STREAM_HEADING\n\n' + 'MD_AFTER_ANCHOR '.repeat(180) + '\n\n',
+            'MD_MORE_4 ' + 'More streamed Markdown content. '.repeat(60) + '\n\n',
+            'MD_MORE_5 ' + 'More streamed Markdown content. '.repeat(60) + '\n\n',
+            'MD_MORE_6 ' + 'More streamed Markdown content. '.repeat(60) + '\n\n',
+            '[reading-ref]: https://example.invalid/reading\n',
+          ];
+          const delta = current.markdown ? markdownChunks[index] : current.kind === 'append'
             ? `${current.marker}_ANSWER\n\n${'Growing real Session content. '.repeat(180)}`
             : `${current.marker}_${index} ${'Real streamed fixture text. '.repeat(30)}\n\n`;
           text += delta;
@@ -74,7 +84,7 @@ export function apply(ctx) {
         modelRegistered = true;
       }
       if (script || active) throw new Error('one fixture stream at a time');
-      script = { kind: request.op, marker: request.marker, total: request.op === 'append' ? 1 : 8, allowed: 1, emitted: 0, finished: false };
+      script = { markdown: request.markdown === true, kind: request.op, marker: request.marker, total: request.op === 'append' ? 1 : 8, allowed: 1, emitted: 0, finished: false };
       modelSession = id;
       let finishTurn, failTurn, timer;
       let entered = false;

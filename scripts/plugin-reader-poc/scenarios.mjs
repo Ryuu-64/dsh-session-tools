@@ -127,6 +127,50 @@ export async function exercisePoc(page, output, { control, uninstall }) {
     assert.equal(await page.locator('[data-reader-return]').count(),0, interruption + ' must discard the old return point');
     record(interruption, 'pending return invalidated; user-selected A remains active');
   }
+  // Full Markdown blocks: a fence spans chunks/blank lines, then a table and
+  // reference links. Resolving the links on settlement shrinks content ABOVE
+  // the held line, so preserving scrollTop alone cannot pass this assertion.
+  await reader.getByRole('button',{name:'Go to latest',exact:true}).click();
+  await control({op:'stream',id:A,marker:'MARKDOWN_STREAM',markdown:true});
+  await reader.getByRole('heading',{name:'MD_HEADING',exact:true}).waitFor();
+  await control({op:'release',count:3});
+  await reader.getByRole('heading',{name:'MD_STREAM_HEADING',exact:true}).waitFor();
+  const markdown = reader.locator('[data-reader-markdown]').filter({has: page.getByRole('heading',{name:'MD_HEADING',exact:true})});
+  assert.equal(await markdown.locator('pre code').count(),1, 'one intact fenced code block');
+  assert.match(await markdown.locator('pre code').innerText(),/const first = 1;[\s\S]*const third = 3;/);
+  assert.equal(await markdown.getByRole('columnheader').count(),2);
+  assert.equal(await markdown.getByRole('listitem').count(),2);
+  const heldLine = reader.getByText('MD_HOLD_ANCHOR unique stable reading line.',{exact:true});
+  await heldLine.scrollIntoViewIfNeeded();
+  const linePosition = () => heldLine.evaluate(node => {
+    const scroll = node.closest('[data-reader-scroll]');
+    return { text:node.textContent, top:node.getBoundingClientRect().top-scroll.getBoundingClientRect().top-scroll.clientTop, scrollTop:scroll.scrollTop };
+  });
+  const initialLine = await linePosition();
+  await reader.locator('[data-reader-scroll]').first().hover();
+  await page.mouse.wheel(0, initialLine.top - 12); await pause(page);
+  const markdownCaptured = await linePosition();
+  const referenceParagraph = markdown.locator('p').filter({hasText:'MD_REF'}).first();
+  const prefixBefore = await referenceParagraph.evaluate(node=>node.getBoundingClientRect().height);
+  await reader.getByRole('combobox',{name:'Reading session 0'}).selectOption(B);
+  await reader.getByText('RETURN_B_USER_80',{exact:false}).waitFor();
+  await control({op:'release',count:1});
+  await reader.getByRole('button',{name:'Return to source',exact:true}).click();
+  await heldLine.waitFor(); await pause(page);
+  const markdownReturned = await linePosition();
+  assert.ok(Math.abs(markdownReturned.top-markdownCaptured.top)<2, 'Markdown text position restores while still streaming');
+  await page.screenshot({path:path.join(output,'markdown-held-streaming.png')});
+  await control({op:'release',count:3});
+  await markdown.getByRole('link',{name:'MD_REF',exact:true}).first().waitFor(); await pause(page);
+  const prefixAfter = await referenceParagraph.evaluate(node=>node.getBoundingClientRect().height);
+  const markdownSettled = await linePosition();
+  assert.ok(prefixAfter < prefixBefore, 'reference-link finalization must cause real upstream reflow');
+  assert.equal(markdownSettled.text,markdownCaptured.text);
+  assert.ok(Math.abs(markdownSettled.top-markdownCaptured.top)<2, JSON.stringify({markdownCaptured,markdownSettled}));
+  assert.notEqual(markdownSettled.scrollTop,markdownReturned.scrollTop, 'hold must correct for reflow, not merely freeze scrollTop');
+  record('markdownReflow',{captured:markdownCaptured,returned:markdownReturned,settled:markdownSettled,prefixBefore,prefixAfter});
+  await page.screenshot({path:path.join(output,'markdown-held-after-reflow.png')});
+  await reader.getByRole('button',{name:'Go to latest',exact:true}).click(); assert.ok((await measure(reader)).atTail);
   uninstall();
   await page.getByRole('tab',{name:'Reading PoC',exact:true}).waitFor({state:'hidden',timeout:30000});
   await page.locator(`[data-conversation-session="${A}"] [data-chat-flow]`).first().waitFor({timeout:30000});
@@ -134,5 +178,5 @@ export async function exercisePoc(page, output, { control, uninstall }) {
   assert.equal(await page.locator('[data-reader-instance]').count(),0);
   record('uninstalled', { pluginReaderCount: await page.locator('[data-reader-instance]').count(), nativeChat: true });
   await page.screenshot({path:path.join(output,'05-uninstalled-native-chat-restored.png')});
-  return { captured, returned, continued, latest, instanceIsolation:'passed', unloadNativeRestored:'passed', nativeCardRemount: checkpoints.nativeCardRemount, scope:'optional reading mode source to native target and remounted reader return; ordinary native Chat source remains unchanged' };
+  return { captured, returned, continued, latest, instanceIsolation:'passed', unloadNativeRestored:'passed', nativeCardRemount: checkpoints.nativeCardRemount, markdownReflow: checkpoints.markdownReflow, scope:'optional reading mode source to native target and remounted reader return; ordinary native Chat source remains unchanged' };
 }
