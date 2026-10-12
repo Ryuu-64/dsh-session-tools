@@ -66,3 +66,21 @@ rcTest('failed RC2 history remains a failed selected Session, without cancelling
   await h.mountWorkspace();
   assert.ok(h.entry(), 'service reload registers exactly one working card');
 });
+
+rcTest('browser adapter waits for its real sibling service dependencies before exposing a card', async t => {
+  const { JSDOM } = await import('jsdom');
+  const dom = new JSDOM('<body></body>', { pretendToBeVisual: true });
+  t.after(() => dom.window.close());
+  const h = await clientRc2(t, { ids: [b], browser: dom.window });
+  await h.mountWorkspace();
+  assert.equal(h.entry(), undefined, 'uiWorkspace alone does not authorize layout/uiConversation access');
+  // Conversation assembly is not exercised by this empty-document contract.
+  // The separate real-Web lane owns native Chat capture and restoration.
+  await h.ctx.plugin({ name: 'conversation-provider', apply: scope => { scope.provide('uiConversation', {}); } }).await();
+  await tick();
+  assert.ok(h.entry());
+  h.click(b); await tick();
+  assert.equal(h.ctx.sessions.retainInfo(b).getSnapshot().retainedBy.mainView, 1);
+  assert.equal(h.ctx.sessions.retainInfo(b).getSnapshot().referenceCount, 1, 'temporary preparation reference was released');
+  assert.deepEqual(h.cancelled, []);
+});

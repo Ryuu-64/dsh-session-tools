@@ -13,7 +13,7 @@ import * as ReactDOMClient from 'react-dom/client';
 import * as jsx from 'react/jsx-runtime';
 
 const require = createRequire(import.meta.url);
-export function bundles() {
+export function bundles({ browser } = {}) {
   const storage = new Map();
   const modules = new Map(Object.entries({
     '@deepseek-ai/cordis': cordis, '@deepseek-ai/dsh-client-store': store,
@@ -28,7 +28,7 @@ export function bundles() {
     if (modules.has(name)) return modules.get(name);
     let result;
     vm.runInNewContext(readFileSync(path ?? require.resolve(name.endsWith('/client') ? name : `${name}/client`), 'utf8'), {
-      ...globals, window: { __ModuleLoader__: { load(definition) { result = definition.factory(dependency => load(dependency)); } } },
+      ...globals, window: Object.assign(browser ?? {}, { __ModuleLoader__: { load(definition) { result = definition.factory(dependency => load(dependency)); } } }),
     });
     modules.set(name, result);
     return result;
@@ -41,8 +41,8 @@ const stop = signal => new Promise(resolve => {
   else signal.addEventListener('abort', resolve, { once: true });
 });
 
-export async function clientRc2(t, { ids, delayed = new Map(), rejected = new Set(), pluginPath } = {}) {
-  const b = bundles();
+export async function clientRc2(t, { ids, delayed = new Map(), rejected = new Set(), pluginPath, browser } = {}) {
+  const b = bundles({ browser });
   const ctx = new cordis.Context();
   t.after(() => ctx.fiber.dispose());
   const gateway = b.load('@deepseek-ai/dsh-api-gateway/client');
@@ -77,11 +77,12 @@ export async function clientRc2(t, { ids, delayed = new Map(), rejected = new Se
   await ctx.sessions.refresh();
   const renderer = b.load('@deepseek-ai/dsh-client-ui-renderer');
   await ctx.plugin(renderer.SlotRegistry).await();
-  ctx.slots.register({ name: 'root', children: { 'tool.call.toolview': { kind: 'keyed', scope: 'session' } } }, () => null);
+  ctx.slots.register({ name: 'root', children: { 'tool.call.toolview': { kind: 'keyed', scope: 'session' }, ...(browser ? { 'conversation.session.header.actions': { kind: 'list', scope: 'session' } } : {}) } }, () => null);
   const panel = store.createSnapshotStore({ selectedPanel: 'settings' });
   const layout = new (b.load('@deepseek-ai/dsh-client-ui-layout').LayoutController)({ selectPanel: value => panel.set({ selectedPanel: value }) }, () => true, panel);
   t.after(() => layout.dispose());
-  ctx.provide('layout', layout);
+  if (browser) await ctx.plugin({ name: 'layout-provider', apply: scope => { scope.provide('layout', layout); } }).await();
+  else ctx.provide('layout', layout);
   ctx.provide('workspaces', { list: store.createSnapshotStore({ items: [], archivedSessionIds: [], pinnedSessionIds: [], phase: 'ready', state: 'idle', error: null }) });
   ctx.provide('locale', { register: () => () => {}, bind: () => key => key });
   ctx.provide('shortcuts', { catalog: store.createSnapshotStore([]), register: () => () => {} });
