@@ -1,6 +1,6 @@
 {
   "name": "@ryuu-64/dsh-session-tools",
-  "version": "0.6.0",
+  "version": "0.8.0-candidate.10",
   "description": "Let the agent start a new chat session, send a message to another one, or wait for it to finish.",
   "type": "module",
   "license": "MIT",
@@ -34,7 +34,8 @@
       "inject": [
         "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-client-ui-tool",
-        "@deepseek-ai/dsh-client-ui-workspace"
+        "@deepseek-ai/dsh-client-ui-workspace",
+        "@deepseek-ai/dsh-api-gateway"
       ]
     }
   },
@@ -44,15 +45,18 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-agent": ">=0.1.5-rc.2 <0.1.6-0 || >=0.1.6-0 <0.2.0-0 || 0.2.0-rc.2",
-    "@deepseek-ai/dsh-agent-default-model": ">=0.1.5-rc.2 <0.1.6-0 || >=0.1.6-0 <0.2.0-0 || 0.2.0-rc.2",
-    "@deepseek-ai/dsh-brand": ">=0.1.5-rc.2 <0.1.6-0 || >=0.1.6-0 <0.2.0-0 || 0.2.0-rc.2",
-    "@deepseek-ai/dsh-llm": ">=0.1.5-rc.2 <0.1.6-0 || >=0.1.6-0 <0.2.0-0 || 0.2.0-rc.2",
-    "@deepseek-ai/dsh-session-title": ">=0.1.5-rc.2 <0.1.6-0 || >=0.1.6-0 <0.2.0-0 || 0.2.0-rc.2",
-    "@deepseek-ai/dsh-tools": ">=0.1.5-rc.2 <0.1.6-0 || >=0.1.6-0 <0.2.0-0 || 0.2.0-rc.2",
-    "@deepseek-ai/dsh-workspace": ">=0.1.5-rc.2 <0.1.6-0 || >=0.1.6-0 <0.2.0-0 || 0.2.0-rc.2",
+    "@deepseek-ai/dsh-agent": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-agent-default-model": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-brand": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-title": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-workspace": "0.2.0-rc.2",
     "@deepseek-ai/schemastery": "^3.18.2",
-    "react": ">=18 <20"
+    "react": ">=18 <20",
+    "@deepseek-ai/dsh-storage-domain": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2"
   },
   "files": [
     "lib",

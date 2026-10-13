@@ -9,14 +9,14 @@
 下面以 `web` profile（宿主配置）为例，将插件安装到该配置中：
 
 ```sh
-dsh plugin --profile web add @ryuu-64/dsh-session-tools@0.6.0
+dsh plugin --profile web add @ryuu-64/dsh-session-tools@0.7.0
 ```
 
 DSH `0.1.5-rc.2` 的 CLI 不接受 `desktop` profile：该配置由 Electron 应用管理。本页只演示 CLI 支持的 `web` 安装，不把同一命令替换为 `desktop` 使用；桌面端请按所装 DSH 版本提供的插件入口操作。
 
 ## 从源码安装
 
-需要 Git，以及符合版本要求的 Node.js。`main` 含尚未发布的改动；例如 DSH `0.2.0-rc.2` 适配。以下 Windows 示例中的路径必须替换成实际克隆目录的绝对路径；macOS / Linux 可使用 `"link:/absolute/path/to/dsh-session-tools"`。
+需要 Git，以及符合版本要求的 Node.js。一般使用上面的 npm 包安装即可；源码方式用于开发或检查尚未发布的改动。以下 Windows 示例中的路径必须替换成实际克隆目录的绝对路径；macOS / Linux 可使用 `"link:/absolute/path/to/dsh-session-tools"`。
 
 ```sh
 git clone https://github.com/Ryuu-64/dsh-session-tools.git
