@@ -66,7 +66,7 @@ export async function clientRc2(t, { ids, delayed = new Map(), rejected = new Se
     cancel: async () => { cancelled.push(true); return { ok: true, value: { accepted: true } }; },
   };
   const remote = { session, commands: {}, subagents: {}, directoryPicker: {},
-    $on: () => () => {}, $stream: options => new gateway.RemoteStream(connection, options),
+    $mount: async () => async () => {}, $on: () => () => {}, $stream: options => new gateway.RemoteStream(connection, options),
   };
   for (const [key, value] of Object.entries({ connection, remote, fileUpload: {},
     'remote.commands': remote.commands, 'remote.session': session, 'remote.subagents': remote.subagents,
@@ -88,7 +88,7 @@ export async function clientRc2(t, { ids, delayed = new Map(), rejected = new Se
   const plugin = ctx.plugin(b.load('@ryuu-64/dsh-session-tools', pluginPath ?? new URL('../../lib/client.js', import.meta.url)));
   await plugin.await();
   const mountWorkspace = async () => { const fiber = ctx.plugin(b.load('@deepseek-ai/dsh-client-ui-workspace')); await fiber.await(); return fiber; };
-  const entry = () => ctx.slots.entriesOfSlot('tool.call.toolview')[0];
+  const entry = () => ctx.slots.entriesOfSlot('tool.call.toolview').find(item => item.options.key === 'session_create');
   const click = id => {
     const row = entry();
     const tree = row.component({ block: { kind: 'tool-result', isError: false, meta: { sessionId: id }, content: [] }, slot: { injected: row.inject() } });

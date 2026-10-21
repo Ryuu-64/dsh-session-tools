@@ -2,9 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Context, Service, symbols } from '@deepseek-ai/cordis';
 import { apply } from '../lib/index.js';
+import { withCommunicationHost } from './helpers/communication-host.mjs';
 
 test('real Cordis traced agent proxies share one cold-resume lock across caller contexts', async (t) => {
   const ctx = new Context();
+  withCommunicationHost(ctx);
   t.after(() => ctx.fiber.dispose());
   let live, resumeCalls = 0, release;
   const barrier = new Promise(resolve => { release = resolve; });
@@ -60,7 +62,7 @@ function creation({ abortAt } = {}) {
     async detachSession() { calls.detach++; },
   };
   let create;
-  apply({
+  apply(withCommunicationHost({
     tools: { register(tool) { if (tool.name === 'session_create') create = tool; } },
     agents: { async create(options) {
       calls.create++;
@@ -76,7 +78,7 @@ function creation({ abortAt } = {}) {
       sandboxPolicy: { resolve: () => ({ mode: 'workspace-write' }) },
       agentPresets: { async resolve() { cancel('preset'); await Promise.resolve(); return { id: 'preset' }; }, async mount() {} },
     })[name],
-  });
+  }));
   return { calls, run: () => create.execute({ prompt: 'hello', workspacePath: '/workspace', title: 'test' }, {
     name: 'session_create', callId: 'create', signal: controller.signal,
     agent: { id: 'caller', session: { header: { id: 'caller', cwd: '/workspace' } } },

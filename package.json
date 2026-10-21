@@ -1,6 +1,6 @@
 {
   "name": "@ryuu-64/dsh-session-tools",
-  "version": "0.8.0-candidate.10",
+  "version": "0.8.0",
   "description": "Let the agent start a new chat session, send a message to another one, or wait for it to finish.",
   "type": "module",
   "license": "MIT",
@@ -70,6 +70,8 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/cordis-plugin-group": "1.0.4",
+    "@deepseek-ai/cordis-plugin-include": "1.0.9",
     "@deepseek-ai/cordis-plugin-loader": "1.0.5",
     "@deepseek-ai/dsh-agent": "0.2.0-rc.2",
     "@deepseek-ai/dsh-agent-default-model": "0.2.0-rc.2",
@@ -106,6 +108,9 @@
     "zustand": "4.4.7"
   },
   "overrides": {
+    "@deepseek-ai/cordis-plugin-group": "1.0.4",
+    "@deepseek-ai/cordis-plugin-include": "1.0.9",
+    "@deepseek-ai/cordis-plugin-loader": "1.0.5",
     "@deepseek-ai/dsh-scope": "0.2.0-rc.2",
     "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
     "@deepseek-ai/dsh-util-values": "0.2.0-rc.2",

@@ -9,7 +9,7 @@
 下面以 `web` profile（宿主配置）为例，将插件安装到该配置中：
 
 ```sh
-dsh plugin --profile web add @ryuu-64/dsh-session-tools@0.7.0
+dsh plugin --profile web add @ryuu-64/dsh-session-tools@0.8.0
 ```
 
 DSH `0.1.5-rc.2` 的 CLI 不接受 `desktop` profile：该配置由 Electron 应用管理。本页只演示 CLI 支持的 `web` 安装，不把同一命令替换为 `desktop` 使用；桌面端请按所装 DSH 版本提供的插件入口操作。

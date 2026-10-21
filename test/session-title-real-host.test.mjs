@@ -54,7 +54,15 @@ for (const { label, expected, ...args } of cases) {
     assert.deepEqual(message.data.source, { kind: 'tool-session', form: 'relay' });
     assert.equal(message.data.content[0].text, args.prompt.trim(), 'title cleanup must not rewrite the task');
     const create = h.ctx.tools.get('session_create');
-    assert.deepEqual(create.output.presentationMeta(args, created), { sessionId: created.sessionId, title: expected });
+    assert.deepEqual(create.output.presentationMeta(args, created), {
+      sessionId: created.sessionId,
+      messageId: created.messageId,
+      messageStatus: 'turnCompleted',
+      waitStatus: 'completed',
+      turn: created.turn,
+      turnEndKind: 'completed',
+      title: expected,
+    });
     assert.match(create.output.render(args, created)[0].text, new RegExp(created.messageId));
     await h.ctx.sessionPersistence.flush();
     const stored = await h.read(created.sessionId);

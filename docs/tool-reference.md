@@ -158,7 +158,7 @@ DSH `0.1.5-rc.2` 的 [`dispose`](https://github.com/deepseek-ai/deepseek-harness
 列表只列出宿主当前未归档的直接子会话；归档后自动移出、取消归档后重新出现。父会话已归档时显示“父对话已归档”并禁用返回按钮，避免无效跳转。状态使用宿主 running 布尔值，空闲不表示任务成功。
 
 
-## 当前通信开关（本地候选）
+## 当前通信开关
 
 `list_sessions` 每行的 `communication` 是当前调用方到该目标的开关快照：`state` 为 `allowed`、`blocked` 或 `unknown`；`reason` 说明来源关闭发送、目标关闭接收、两者关闭或无法确认。`senderSend` 和 `targetReceive` 只在读取成功时提供，`checkedAt` 是读取时间。每页重新批读，不沿用分页创建时的权限。此状态只说明开关，不替代审批、目标合法性或发送时检查。
 

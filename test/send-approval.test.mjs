@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { apply } from '../lib/index.js';
+import { withCommunicationHost } from './helpers/communication-host.mjs';
 
 function fixture({ outcome = 'allowed-once', policy = 'ask', mode = 'workspace-write', missing, header = {}, approve, resume } = {}) {
   const timeline = [];
@@ -47,6 +48,7 @@ function fixture({ outcome = 'allowed-once', policy = 'ask', mode = 'workspace-w
     agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
     get: name => services[name],
   };
+  withCommunicationHost(ctx);
   apply(ctx);
   const state = {
     calls, timeline, controller, target, services,

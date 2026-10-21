@@ -14,14 +14,22 @@ export async function sessionCard(t, { path = new URL('../../lib/client.js', imp
     console: { error: (...args) => errors.push(args) },
     window: { __ModuleLoader__: { load(definition) {
       assert.equal(definition.id, '@ryuu-64/dsh-session-tools');
-      client = definition.factory(name => { assert.equal(name, 'react'); return React; });
+      client = definition.factory(name => {
+        if (name === 'react') return React;
+        if (name === '@deepseek-ai/dsh-client-ui-primitives') return {};
+        assert.fail(`unexpected browser dependency: ${name}`);
+      });
     } } },
   });
   const slots = new SlotCore();
   t.after(slots.register({ name: 'root', children: { 'tool.call.toolview': { kind: 'keyed', scope: 'session' } } }, () => null));
   client.apply({
+    inject: () => undefined,
     slots: {
-      inject(name, register) { assert.ok(slots.spec(name)); t.after(register()); },
+      inject(name, register) {
+        if (!slots.spec(name)) return;
+        t.after(register());
+      },
       register: (options, component) => slots.register(options, component),
     },
     sessions: { open: open ?? (id => opened.push(id)) },

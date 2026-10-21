@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { apply } from '../lib/index.js';
+import { withCommunicationHost } from './helpers/communication-host.mjs';
 
 // Only public rc.2 service contracts are exposed. A private effectivePolicy
 // call would fail, rather than silently being supported by this fixture.
@@ -20,7 +21,7 @@ function host({ mode = 'workspace-write', policy = 'ask', configured = 'ask', ou
   };
   delete services[missing];
   const tools = {};
-  apply({
+  apply(withCommunicationHost({
     tools: { register(tool) { tools[tool.name] = tool; } },
     agents: {
       get: () => target,
@@ -31,7 +32,7 @@ function host({ mode = 'workspace-write', policy = 'ask', configured = 'ask', ou
     workspaceRegistry: { list: () => [], resolveByPath: async () => undefined },
     agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
     get: name => services[name],
-  });
+  }));
   return {
     calls, controller,
     run(name) {

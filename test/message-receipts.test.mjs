@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { apply } from '../lib/index.js';
 import { foldReceipts, messageReceipt, receiptProjection, turnOutput } from '../lib/message-receipts.js';
+import { withCommunicationHost } from './helpers/communication-host.mjs';
 
 function log() {
   const events = [];
@@ -144,7 +145,7 @@ test('the pure projection is immutable, JSON-roundtrippable and validates checkp
 test('idle + latest assistant text without message evidence is explicitly unknown', async () => {
   const tools = {};
   const target = { id: 'target', status: 'idle', session: { snapshotEvents: () => [{ seq: 0, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'old answer' }] } } }] } };
-  apply({ tools: { register: d => { tools[d.name] = d; } }, agents: { get: () => target } });
+  apply(withCommunicationHost({ tools: { register: d => { tools[d.name] = d; } }, agents: { get: () => target } }));
   const result = await tools.session_wait.execute({ sessionId: 'target', messageId: 'unknown' }, {});
   assert.equal(result.scope, 'message');
   assert.equal(result.messageStatus, 'unknown');
@@ -165,10 +166,10 @@ test('non-waiting send reports a synchronous discard with the exact delivery rec
       l.append('agent/inbox/spliced', { target: 'next-turn', start: 0, removedCount: 1, inserted: [], outcome: 'canceled' });
     },
   };
-  apply({
+  apply(withCommunicationHost({
     tools: { register: d => { tools[d.name] = d; } }, agents: { get: () => target },
     get: name => ({ sandboxPolicy: { resolve: () => ({ mode: 'danger-full-access' }) }, approval: { overrideOf: () => 'never', request() {} } })[name],
-  });
+  }));
   const result = await tools.session_send.execute({ sessionId: 'target', message: 'A' }, { agent: { id: 'caller', session: { header: { id: 'caller' } } } });
   assert.equal(result.messageId, delivered.id);
   assert.equal(result.messageStatus, 'discarded'); assert.equal(result.completed, false); assert.equal(result.output, undefined);

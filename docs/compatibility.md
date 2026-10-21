@@ -2,9 +2,9 @@
 
 [返回 README](../README.md)
 
-## 0.8.0 未发布候选
+## 0.8.0
 
-通信开关候选只支持已核实的 **DSH 0.2.0-rc.2**，需要 storageDomain、typert、connection，以及原生会话菜单和 UI primitives。不会沿用 0.7.0 的旧宿主 peer 范围。旧版本兼容信息保留在下方，描述的是已发布的 0.7.0。
+`0.8.0` 的通信开关只支持已核实的 **DSH 0.2.0-rc.2**，需要 storageDomain、typert、connection，以及原生会话菜单、UI primitives 和右侧栏公开接口。不会沿用 0.7.0 的旧宿主 peer 范围。旧版本兼容信息保留在下方。
 
 权限记录由宿主 storageDomain 保存；不存在时双向开启，记录损坏或读取失败时拒绝新消息。此控制只覆盖本插件的新消息投递；不会阻止同进程高权限代码或宿主其他投递入口。
 
