@@ -27,7 +27,10 @@ export function gate() {
 }
 
 /** Official rc.2 host with restartable, workspace-local JSONL storage. */
-export async function receiptHost(t, { titleConfig = { fallbackMaxWords: 8, fallbackMaxBytes: 100, maxTitleBytes: 100 } } = {}) {
+export async function receiptHost(t, {
+  titleConfig = { fallbackMaxWords: 8, fallbackMaxBytes: 100, maxTitleBytes: 100 },
+  onApproval = () => 'allowed-once',
+} = {}) {
   const root = await mkdtemp(join(process.cwd(), '.receipt-host-'));
   const contexts = [], gates = [];
   t.after(async () => {
@@ -50,10 +53,10 @@ export async function receiptHost(t, { titleConfig = { fallbackMaxWords: 8, fall
     const configFile = join(root, 'plugins.json');
     await writeFile(configFile, JSON.stringify(entries));
     for (const entry of JSON.parse(await readFile(configFile, 'utf8'))) await loader.create(entry);
-    await loader.create({ name: new URL('../../lib/index.js', import.meta.url).href });
+    const pluginId = await loader.create({ name: new URL('../../lib/index.js', import.meta.url).href });
     await loader.await();
     const model = new ScriptedModel(); ctx.llm.registerAdapter(['fixture'], model);
-    ctx.on('approval/request', () => 'allowed-once');
+    ctx.on('approval/request', onApproval);
     const create = id => ctx.agents.create({ sessionId: id, meta: { cwd: root }, agentOptions: { provider: 'fixture', model: 'scripted' } });
     const holdCaller = async (id = 'caller') => {
       const started = Promise.withResolvers(), hold = gate(); gates.push(hold);
@@ -66,7 +69,7 @@ export async function receiptHost(t, { titleConfig = { fallbackMaxWords: 8, fall
       try { return { ...await reader.read(), header: reader.header, inheritedEventCount: reader.inheritedEventCount }; }
       finally { await reader.close(); }
     };
-    return { ctx, loader, model, create, holdCaller, read, root, restart: async () => { await ctx.fiber.dispose(); return start(); } };
+    return { ctx, loader, pluginId, model, create, holdCaller, read, root, restart: async () => { await ctx.fiber.dispose(); return start(); } };
   };
   return start();
 }
