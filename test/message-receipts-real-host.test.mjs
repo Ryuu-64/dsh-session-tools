@@ -155,6 +155,59 @@ test('real creation returns the first-message receipt, and later turns cannot re
   assert.equal((await wait(h, created)).output, 'first result');
 });
 
+test('a new session inherits the real caller selection for its next step', { timeout: 15000 }, async t => {
+  const h = await receiptHost(t);
+  const caller = await h.holdCaller();
+  const agent = caller.caller.agent;
+  const next = { provider: 'fixture', model: 'selected-model', reasoningEffort: 'high' };
+  t.mock.method(h.model, 'resolveModel', async (provider, model) => ({
+    provider, id: model, name: model, reasoning: { efforts: [{ id: 'high', name: 'High' }] },
+  }));
+  let current;
+  if (agent.model === undefined) {
+    // The rc.2 SessionController normally registers this projection in Web.
+    const controller = import.meta.resolve('@deepseek-ai/dsh-api-session-controller');
+    const { installModelSelectionProjection } = await import(new URL('./types/model-selection-projection.js', controller));
+    installModelSelectionProjection(h.ctx);
+    agent.session.append('model/selection', next);
+  } else {
+    agent.model.select(next);
+    assert.deepEqual(agent.model.current(), next);
+    current = t.mock.method(agent.model, 'current');
+  }
+  h.model.text('selected route response');
+  const created = await h.ctx.tools.get('session_create').execute({ prompt: 'Use this route', wait: true, timeoutMs: 3000 }, caller.exec);
+  const target = h.ctx.agents.get(created.sessionId);
+  assert.equal(created.output, 'selected route response', JSON.stringify(target.session.snapshotEvents().slice(-3)));
+  assert.equal(h.model.requests[0].model, 'scripted');
+  const { provider, model, reasoningEffort } = h.model.requests[1];
+  assert.deepEqual({ provider, model, reasoningEffort }, next);
+  if (current) assert.equal(current.mock.callCount(), 1);
+});
+
+test('creation reads the recorded preset from its owner and defaults when no preset is recorded', { timeout: 15000 }, async t => {
+  const h = await receiptHost(t);
+  const caller = await h.holdCaller();
+  const create = h.ctx.tools.get('session_create');
+  const mounts = [];
+  let recorded = 'selected';
+  h.ctx.provide('agentPresets', {
+    presetForSession(session) {
+      assert.equal(session, caller.caller.agent.session);
+      return recorded;
+    },
+    async resolve() { return { id: 'default' }; },
+    async mount(_scope, id) { mounts.push(id); },
+  });
+  for (const expected of ['selected', 'default']) {
+    h.model.text('child done');
+    const created = await create.execute({ prompt: 'Inherit preset', wait: true, timeoutMs: 3000 }, caller.exec);
+    assert.equal(h.ctx.agents.get(created.sessionId).session.header.agentPreset, expected);
+    recorded = null;
+  }
+  assert.deepEqual(mounts, ['selected', 'default']);
+});
+
 test('real cancellation after claim but before request admission is not completed', { timeout: 15000 }, async t => {
   const h = await receiptHost(t); const caller = await h.holdCaller(); const target = await h.create('target');
   const entered = Promise.withResolvers(), hold = gate(); t.after(hold.release);

@@ -6,6 +6,12 @@
 
 支持 DSH `0.2.0-rc.2` 和 `0.2.2-rc.3` 两个确切的宿主版本。使用 `0.2.2-rc.3` 时，按该宿主的要求使用 Node.js 24.9.0 或更新的 24 系列版本。支持范围由包的 `engines.dsh` 和 DSH SDK peer 依赖声明。已发布的 `0.8.0` 使用下方记录的兼容范围。
 
+### DSH 0.2.2-rc.3 适配
+
+- 消息回执等待异步注册并保存投影句柄。注册被拒绝或句柄暂不可用时，从会话日志计算回执。`0.2.0-rc.2` 在同步注册成功后按键读取。 [Session 投影迁移指南](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/docs/upgrade-guide/v0.2.1-rc.2/session-projection-handles/guide.zh.md)
+- `session_create` 通过 `agent.model.current()` 继承调用方下一步选定的 provider、model 和已指定的推理强度，通过 `agentPresets.presetForSession()` 读取已记录的预设。`0.2.0-rc.2` 通过宿主投影读取相应的选择。 [模型选择实现](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/core/agent/src/model-selection.ts) · [Session 投影迁移指南](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/docs/upgrade-guide/v0.2.1-rc.2/session-projection-handles/guide.zh.md)
+- 工具仍通过 `tools.register` 注册。`0.2.2-rc.3` 的真实宿主测试组合由官方 native 工具执行器运行模型发起的调用，并覆盖会话创建、发送、恢复、等待和取消。 [工具注册接口](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/core/tools/README.md) · [官方基础组合](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/bundle/base/cordis.patch.yml)
+
 ## 0.8.0
 
 `0.8.0` 的通信开关只支持已核实的 **DSH 0.2.0-rc.2**，需要 storageDomain、typert、connection，以及原生会话菜单、UI primitives 和右侧栏公开接口。不会沿用 0.7.0 的旧宿主 peer 范围。旧版本兼容信息保留在下方。
