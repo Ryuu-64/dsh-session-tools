@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { getEventListeners } from 'node:events';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { realHost } from './helpers/real-host.mjs';
+import { executeTool } from './helpers/tool-executor.mjs';
 
 test('real rc.2 resume: cancelling a queued sender leaves the preceding preset mount and later sender intact', { timeout: 10000 }, async t => {
   const mounted = Promise.withResolvers(), releaseMount = Promise.withResolvers(), finishCaller = Promise.withResolvers();
@@ -40,7 +41,7 @@ test('real rc.2 resume: cancelling a queued sender leaves the preceding preset m
   await callerStarted.promise;
   h.model.text('answer A'); h.model.text('answer C');
   const aController = new AbortController(), bController = new AbortController(), cController = new AbortController();
-  const run = (id, signal) => h.ctx.tools.execute({
+  const run = (id, signal) => executeTool(h.ctx, {
     name: 'session_send', callId: id, agent: caller.agent, signal,
     arguments: { sessionId: 'queue-target', message: id },
   });

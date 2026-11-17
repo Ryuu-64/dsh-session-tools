@@ -5,6 +5,7 @@ import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import YAML from 'yaml';
+import { mountNativeToolExecutor } from './tool-executor.mjs';
 
 /** Only the external model boundary is replaced; every host service is real. */
 export class ScriptedModel extends LlmAdapter {
@@ -58,6 +59,7 @@ export async function realHost(t, { pluginPath = new URL('../../lib/index.js', i
   await writeFile(configFile, YAML.stringify(entries));
   for (const entry of YAML.parse(await readFile(configFile, 'utf8'))) await loader.create(entry);
   await loader.await();
+  await mountNativeToolExecutor(ctx);
   ctx.llm.registerAdapter(['fixture'], model);
   const workspace = await ctx.workspaceRegistry.create(root, 'Isolated fixture');
   const createAgent = async (id) => ctx.agents.create({ sessionId: id, meta: { cwd: root }, agentOptions: { provider: 'fixture', model: 'scripted' } });

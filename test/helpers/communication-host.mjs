@@ -9,7 +9,7 @@ function storageDomain() {
     },
     async put(id, value) { records.set(id, structuredClone(value)); },
   };
-  return { open: async () => ({ table: () => table }) };
+  return { open: async () => ({ table: () => table, async close() {} }) };
 }
 
 /** Add the public services required by the 0.8 communication layer to a test host. */

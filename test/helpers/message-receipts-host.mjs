@@ -4,6 +4,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ScriptedModel } from './real-host.mjs';
+import { mountNativeToolExecutor } from './tool-executor.mjs';
 
 export const user = text => createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text }] });
 export async function* textChunks(text) {
@@ -55,6 +56,7 @@ export async function receiptHost(t, {
     for (const entry of JSON.parse(await readFile(configFile, 'utf8'))) await loader.create(entry);
     const pluginId = await loader.create({ name: new URL('../../lib/index.js', import.meta.url).href });
     await loader.await();
+    await mountNativeToolExecutor(ctx);
     const model = new ScriptedModel(); ctx.llm.registerAdapter(['fixture'], model);
     ctx.on('approval/request', onApproval);
     const create = id => ctx.agents.create({ sessionId: id, meta: { cwd: root }, agentOptions: { provider: 'fixture', model: 'scripted' } });

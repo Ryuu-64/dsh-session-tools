@@ -1,15 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const isRc2 = require('@deepseek-ai/dsh-agent/package.json').version === '0.2.0-rc.2';
-const { clientRc2 } = isRc2 ? await import('./helpers/client-rc2.mjs') : {};
-const rcTest = (name, fn) => test(name, { skip: !isRc2 }, fn);
+import { clientRc2 } from './helpers/client-rc2.mjs';
 const a = 'session-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const b = 'session-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-rcTest('published RC2 bundles own delayed navigation, repeat selection, replacement and unload', async t => {
+test('published client bundles own delayed navigation, repeat selection, replacement and unload', async t => {
   const pending = Promise.withResolvers();
   const h = await clientRc2(t, { ids: [a, b], delayed: new Map([[a, pending]]) });
   assert.equal(h.entry(), undefined, 'wait for UIWorkspace service; do not call removed sessions.open');
@@ -37,7 +33,7 @@ rcTest('published RC2 bundles own delayed navigation, repeat selection, replacem
   assert.deepEqual(h.cancelled, [], 'reading/navigation never cancels an Agent turn');
 });
 
-rcTest('two real RC2 client roots keep independent selections and dispose all streams', async t => {
+test('two client roots keep independent selections and dispose all streams', async t => {
   const left = await clientRc2(t, { ids: [a, b] });
   const right = await clientRc2(t, { ids: [a, b] });
   await left.mountWorkspace(); await right.mountWorkspace();
@@ -51,7 +47,7 @@ rcTest('two real RC2 client roots keep independent selections and dispose all st
   assert.deepEqual([...right.closed].sort(), [...right.opened].sort());
 });
 
-rcTest('failed RC2 history remains a failed selected Session, without cancelling work', async t => {
+test('failed history remains a failed selected Session, without cancelling work', async t => {
   const h = await clientRc2(t, { ids: [a], rejected: new Set([a]) });
   const workspace = await h.mountWorkspace();
   h.click(a); await tick();

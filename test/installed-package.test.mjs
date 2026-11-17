@@ -30,10 +30,11 @@ test('clean npm consumer installs the packed artifact without peer bypass or sou
   await execNpm(['ls', '--all'], { cwd: root, env, maxBuffer: 4 * 1024 * 1024 });
   const installed = JSON.parse(await readFile(join(root, 'node_modules/@ryuu-64/dsh-session-tools/package.json'), 'utf8'));
   assert.deepEqual(installed.peerDependencies, pkg.peerDependencies);
+  assert.equal(installed.engines.dsh, pkg.engines.dsh);
   assert.ok(installed.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-workspace'));
   assert.ok(!installed.dsh.client.inject.includes('@deepseek-ai/dsh-client-runtime'));
   await mkdir(join(root, 'test/helpers'), { recursive: true });
-  for (const file of ['real-host.mjs', 'installed-probe.mjs', 'client-rc2.mjs']) await copyFile(join(sourceRoot, 'test/helpers', file), join(root, 'test/helpers', file));
+  for (const file of ['real-host.mjs', 'installed-probe.mjs', 'client-rc2.mjs', 'tool-executor.mjs']) await copyFile(join(sourceRoot, 'test/helpers', file), join(root, 'test/helpers', file));
   const childEnv = { ...env };
   delete childEnv.NODE_TEST_CONTEXT;
   const probe = await exec(process.execPath, ['--test', '--test-reporter=tap', 'test/helpers/installed-probe.mjs'], { cwd: root, env: childEnv });

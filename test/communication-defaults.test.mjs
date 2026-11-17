@@ -17,8 +17,8 @@ test('live defaults govern inherited communication and preserve explicit session
   const fiber = entry.fiber;
   const statusTool = h.ctx.tools.get('session_communication_status');
   const permissions = communicationPermissions(h.ctx, () => ({
-    send: fiber.config.defaultSend.get(),
-    receive: fiber.config.defaultReceive.get(),
+    send: entry.options.config?.defaultSend ?? true,
+    receive: entry.options.config?.defaultReceive ?? true,
   }));
   const statusOf = async sessionId => (await statusTool.execute({ sessionId }, caller.exec)).communication.reason;
   const before = await permissions.get('inherited');

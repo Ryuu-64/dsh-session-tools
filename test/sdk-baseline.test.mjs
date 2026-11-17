@@ -11,7 +11,8 @@ test('every installed DSH package belongs to the selected SDK baseline', async (
   const baseline = pkg.devDependencies['@deepseek-ai/dsh-agent'];
   let count = 0;
   for (const [path, entry] of Object.entries(lock.packages)) {
-    if (!path.includes('/@deepseek-ai/dsh-')) continue;
+    const name = path.split('node_modules/').at(-1);
+    if (!name.startsWith('@deepseek-ai/dsh-')) continue;
     count++;
     assert.equal(entry.version, baseline, `${path} resolved outside ${baseline}`);
     const installed = JSON.parse(await readFile(new URL(`${path}/package.json`, root), 'utf8'));

@@ -3,6 +3,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
 import vm from 'node:vm';
 import * as cordis from '@deepseek-ai/cordis';
 import * as store from '@deepseek-ai/dsh-client-store';
@@ -13,6 +14,13 @@ import * as ReactDOMClient from 'react-dom/client';
 import * as jsx from 'react/jsx-runtime';
 
 const require = createRequire(import.meta.url);
+function resolveBrowserBundle(name) {
+  const pkg = name.replace(/\/client$/, '');
+  const manifest = require(`${pkg}/package.json`);
+  const browser = manifest.exports['./client']?.browser;
+  return typeof browser === 'string' ? resolve(dirname(require.resolve(`${pkg}/package.json`)), browser)
+    : require.resolve(`${pkg}/client`);
+}
 export function bundles() {
   const storage = new Map();
   const modules = new Map(Object.entries({
@@ -27,7 +35,7 @@ export function bundles() {
   const load = (name, path) => {
     if (modules.has(name)) return modules.get(name);
     let result;
-    vm.runInNewContext(readFileSync(path ?? require.resolve(name.endsWith('/client') ? name : `${name}/client`), 'utf8'), {
+    vm.runInNewContext(readFileSync(path ?? resolveBrowserBundle(name), 'utf8'), {
       ...globals, window: { __ModuleLoader__: { load(definition) { result = definition.factory(dependency => load(dependency)); } } },
     });
     modules.set(name, result);
@@ -85,6 +93,8 @@ export async function clientRc2(t, { ids, delayed = new Map(), rejected = new Se
   ctx.provide('workspaces', { list: store.createSnapshotStore({ items: [], archivedSessionIds: [], pinnedSessionIds: [], phase: 'ready', state: 'idle', error: null }) });
   ctx.provide('locale', { register: () => () => {}, bind: () => key => key });
   ctx.provide('shortcuts', { catalog: store.createSnapshotStore([]), register: () => () => {} });
+  ctx.provide('contextMenus', { active: store.createSnapshotStore(null), register: () => () => {} });
+  ctx.provide('remoteAccess', { source: () => store.createSnapshotStore(false) });
   const plugin = ctx.plugin(b.load('@ryuu-64/dsh-session-tools', pluginPath ?? new URL('../../lib/client.js', import.meta.url)));
   await plugin.await();
   const mountWorkspace = async () => { const fiber = ctx.plugin(b.load('@deepseek-ai/dsh-client-ui-workspace')); await fiber.await(); return fiber; };
