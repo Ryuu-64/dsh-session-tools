@@ -6,10 +6,9 @@
 
 | 安装来源 | 支持的 DSH | 会话通信 |
 | --- | --- | --- |
-| npm 已发布的 `0.8.0` | `0.2.0-rc.2` | 逐会话发送和接收开关。无记录的会话双向开启。 |
-| GitHub 当前源码 | `0.2.0-rc.2`、`0.2.2-rc.3` | 逐会话开关，以及对无记录会话生效的 profile 默认值。 |
+| 当前 npm 发行版（自 `0.8.1` 起）与 GitHub 当前源码 | `0.2.0-rc.2`、`0.2.2-rc.3` | 逐会话开关，以及对无记录会话生效的 profile 默认值。 |
 
-使用 DSH `0.2.2-rc.3` 时，请使用 Node.js `24.9.0` 或更新的 24 系列版本。源码的 `engines.dsh` 和 DSH SDK peer 依赖声明了上述两项确切版本。 [npm 发布清单](https://registry.npmjs.org/@ryuu-64%2Fdsh-session-tools/0.8.0) · [源码清单](../package.json) · [安装步骤](installation.md)
+使用 DSH `0.2.2-rc.3` 时，请使用 Node.js `24.9.0` 或更新的 24 系列版本。发行包与源码的 `engines.dsh` 和 DSH SDK peer 依赖声明了上述两项确切版本。 [npm 包](https://www.npmjs.com/package/@ryuu-64/dsh-session-tools) · [源码清单](../package.json) · [安装](../README.md#install)
 
 自定义 profile 若要提供「插件」里的默认开关，需要 DSH 的 `configForms` 和可编辑的插件配置服务。逐会话开关使用宿主认证的通信接口和 `storageDomain`，权限记录无法读取时会拒绝新投递。 [通信开关参考](tool-reference.md#当前通信开关)
 

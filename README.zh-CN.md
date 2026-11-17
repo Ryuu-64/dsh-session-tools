@@ -33,7 +33,7 @@
 
 ## 详细文档与反馈
 
-- [安装、更新和卸载](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md) · [版本与宿主兼容](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/compatibility.md) · [工具和消息回执](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)
+- [版本与宿主兼容](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/compatibility.md) · [工具和消息回执](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)
 - [提交 Issue](https://github.com/Ryuu-64/dsh-session-tools/issues) 时，请附上 DSH、Node.js 和插件版本、安装来源和复现步骤。请移除 API 密钥和私密对话。QQ 交流群 `1129212995`。
 
 [MIT 许可证](https://github.com/Ryuu-64/dsh-session-tools/blob/main/LICENSE)

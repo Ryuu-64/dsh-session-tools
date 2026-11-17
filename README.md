@@ -33,7 +33,7 @@ Turning a switch off blocks new messages in that direction. Work already receive
 
 ## Further reading and feedback
 
-- [Installation, updates, and removal (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md) · [Host compatibility (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/compatibility.md) · [Tool and receipt reference (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)
+- [Host compatibility (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/compatibility.md) · [Tool and receipt reference (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)
 - [Open an issue](https://github.com/Ryuu-64/dsh-session-tools/issues) with your DSH, Node.js, and plugin versions, your installation source, and steps to reproduce the problem. Remove API keys and private conversation text before posting. QQ discussion group `1129212995`.
 
 [MIT license](https://github.com/Ryuu-64/dsh-session-tools/blob/main/LICENSE)
