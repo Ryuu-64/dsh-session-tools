@@ -10,29 +10,11 @@
 
 ## 安装
 
-| 安装来源 | 支持的 DSH | Node.js |
-| --- | --- | --- |
-| npm `0.8.0` | `0.2.0-rc.2` | `22.19+`（22 系列）或 `24.x` |
-| GitHub 当前源码（尚未发布） | `0.2.0-rc.2`、`0.2.2-rc.3` | 使用 `0.2.2-rc.3` 时需要 `24.9.0+`（24 系列） |
+把下面这句话发给能操作你电脑的 AI。
 
-先确认 DSH 已能正常对话，且命令行能运行 `pnpm`。把插件装到你启动 DSH 时用的 profile（宿主配置）。下方命令安装 npm `0.8.0` 到 `web`，适用于 DSH `0.2.0-rc.2`。
+> 请帮我安装这个 DSH 插件，检查兼容性并确认已启用：https://github.com/Ryuu-64/dsh-session-tools
 
-```sh
-dsh plugin --profile web add @ryuu-64/dsh-session-tools@0.8.0
-```
-
-使用 `0.2.2-rc.3` 或需要 profile 通信默认值时，请打包并安装当前源码。先在仓库之外建一个存放插件包的目录，将下方的 `/path/to/plugin-archives` 替换为该目录的绝对路径。装完后留着压缩包，方便 profile 后续找到它。
-
-```sh
-git clone https://github.com/Ryuu-64/dsh-session-tools.git
-cd dsh-session-tools
-npm pack --ignore-scripts --pack-destination "/path/to/plugin-archives"
-dsh plugin --profile web add "/path/to/plugin-archives/ryuu-64-dsh-session-tools-0.8.0.tgz" --ignore-scripts
-```
-
-以 `npm pack` 输出的文件名为准。安装完成后重启 DSH。
-
-如果宿主支持原生更新，通过 npm 包名安装的插件可在「插件 → 会话工具 → 版本 → 重新检查」查看更新。从源码安装的插件可以打包新版后重新安装。 [安装说明](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md)
+DSH `0.2.2-rc.3` 需要使用 GitHub 当前源码，因为 npm `0.8.0` 尚未包含这次兼容性更新。 [手动安装说明](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md)
 
 ## 派出第一个任务
 

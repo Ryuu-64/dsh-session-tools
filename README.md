@@ -10,29 +10,11 @@ Ask the AI in [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-h
 
 ## Install
 
-| Source | Supported DSH versions | Node.js |
-| --- | --- | --- |
-| npm `0.8.0` | `0.2.0-rc.2` | `22.19+` on Node 22, or Node 24 |
-| Current GitHub source, unreleased | `0.2.0-rc.2`, `0.2.2-rc.3` | `0.2.2-rc.3` requires Node `24.9.0+` on Node 24 |
+Copy this request into an AI assistant that can operate your computer.
 
-You’ll need a working DSH setup and `pnpm` available in your terminal. Install into the same profile you use to run DSH. This command installs the published `0.8.0` release in the `web` profile for DSH `0.2.0-rc.2`.
+> Install this plugin in my DSH setup, check compatibility, and confirm it is enabled: https://github.com/Ryuu-64/dsh-session-tools
 
-```sh
-dsh plugin --profile web add @ryuu-64/dsh-session-tools@0.8.0
-```
-
-For DSH `0.2.2-rc.3` or profile-wide communication defaults, package and install the current GitHub source. Create a folder outside the checkout for plugin archives and replace `/path/to/plugin-archives` below with its absolute path. Keep the archive there after installation so the profile can still find it.
-
-```sh
-git clone https://github.com/Ryuu-64/dsh-session-tools.git
-cd dsh-session-tools
-npm pack --ignore-scripts --pack-destination "/path/to/plugin-archives"
-dsh plugin --profile web add "/path/to/plugin-archives/ryuu-64-dsh-session-tools-0.8.0.tgz" --ignore-scripts
-```
-
-Use the filename printed by `npm pack`, and restart DSH after installing.
-
-On a host with native plugin updates, check registry-installed releases under **Plugins → Session Tools → Versions → Check again**. For a source installation, pack the updated source and reinstall from the new archive. [Installation guide (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md)
+DSH `0.2.2-rc.3` needs the current GitHub source because npm `0.8.0` predates that compatibility update. [Manual installation (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md)
 
 ## Delegate your first task
 
