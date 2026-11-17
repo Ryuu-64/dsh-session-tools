@@ -1,6 +1,8 @@
 # dsh-session-tools · Cross-session tasks for DeepSeek Harness
 
-English | [简体中文](https://github.com/Ryuu-64/dsh-session-tools/blob/main/README.zh-CN.md)
+English | [简体中文](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/README.zh-CN.md)
+
+npm: [@ryuu-64/dsh-session-tools](https://www.npmjs.com/package/@ryuu-64/dsh-session-tools) · Maintained by [Ryuu-64](https://github.com/Ryuu-64).
 
 Ask the AI in [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) to start a separate conversation, give it a task, and bring the result back to your current chat.
 

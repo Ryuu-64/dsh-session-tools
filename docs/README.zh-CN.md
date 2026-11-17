@@ -2,6 +2,8 @@
 
 [English](https://github.com/Ryuu-64/dsh-session-tools/blob/main/README.md) | 简体中文
 
+npm 包：[@ryuu-64/dsh-session-tools](https://www.npmjs.com/package/@ryuu-64/dsh-session-tools) · 由 [Ryuu-64](https://github.com/Ryuu-64) 维护。
+
 让 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 里的 AI 新建独立会话、给其他会话派任务，并把结果带回当前对话。
 
 ![DSH 对话中的已创建会话卡片和 SQLite 建议，右侧会话面板列出新建的对话](https://raw.githubusercontent.com/Ryuu-64/dsh-session-tools/main/docs/screenshots/session-create-card.png)
