@@ -1,6 +1,7 @@
 {
   "meta": {
     "title": "会话工具",
-    "description": "创建会话、跨会话发送消息，并等待结果。"
+    "description": "创建会话、跨会话发送消息，并等待结果。",
+    "detail": "README.zh-CN.md"
   }
 }

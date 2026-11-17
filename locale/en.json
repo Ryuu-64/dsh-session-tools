@@ -1,6 +1,7 @@
 {
   "meta": {
     "title": "Session Tools",
-    "description": "Create sessions, send messages between sessions, and wait for results."
+    "description": "Create sessions, send messages between sessions, and wait for results.",
+    "detail": "README.md"
   }
 }
