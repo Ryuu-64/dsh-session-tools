@@ -1,7 +1,7 @@
 {
   "name": "@ryuu-64/dsh-session-tools",
   "version": "0.8.0",
-  "description": "Let the agent start a new chat session, send a message to another one, or wait for it to finish.",
+  "description": "Delegate tasks across DeepSeek Harness sessions. Create conversations, assign tasks, and bring results back to the current chat.",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -12,12 +12,18 @@
     "deepseek-harness",
     "dsh",
     "dsh-plugin",
+    "cross-session",
+    "task-delegation",
     "sessions",
     "tools"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Ryuu-64/dsh-session-tools.git"
+  },
+  "homepage": "https://github.com/Ryuu-64/dsh-session-tools#readme",
+  "bugs": {
+    "url": "https://github.com/Ryuu-64/dsh-session-tools/issues"
   },
   "main": "lib/index.js",
   "exports": {
