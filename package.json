@@ -1,6 +1,6 @@
 {
   "name": "@ryuu-64/dsh-session-tools",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Delegate tasks across DeepSeek Harness sessions. Create conversations, assign tasks, and bring results back to the current chat.",
   "type": "module",
   "license": "MIT",
