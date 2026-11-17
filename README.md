@@ -6,15 +6,13 @@ Ask the AI in [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-h
 
 ![DSH’s Chinese interface showing a new conversation card, the SQLite recommendation, and the related conversation in the right sidebar](https://raw.githubusercontent.com/Ryuu-64/dsh-session-tools/main/docs/screenshots/session-create-card.png)
 
-*DSH Web `0.2.2-rc.3` in Chinese. The card opens the new SQLite and PostgreSQL conversation, which also appears in the right sidebar.*
+*In the Chinese interface, the card opens the new SQLite and PostgreSQL conversation. You can also open it from the right sidebar.*
 
 ## Install
 
 Copy this request into an AI assistant that can operate your computer.
 
 > Install this plugin in my DSH setup, check compatibility, and confirm it is enabled: https://github.com/Ryuu-64/dsh-session-tools
-
-DSH `0.2.2-rc.3` needs the current GitHub source because npm `0.8.0` predates that compatibility update. [Manual installation (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md)
 
 ## Delegate your first task
 
@@ -29,7 +27,7 @@ Include the background, file paths, and expected result in the task. The new con
 ## Communication settings
 
 - **For one conversation.** Open the session panel from the chat header or use the conversation’s **…** menu. Sending and receiving are separate switches.
-- **For the whole profile (current source).** Open **Plugins**, find **Session Tools**, and select **Configure** on the component row. Both defaults start on. Saved defaults apply to conversations without their own settings and survive restarting DSH.
+- **For the whole profile.** Open **Plugins**, find **Session Tools**, and select **Configure** on the component row. Both defaults start on. Saved defaults apply to conversations without their own settings and survive restarting DSH.
 
 Turning a switch off blocks new messages in that direction. Work already received can continue. Turning off sending also blocks creation of a session with a first message. Tasks can be sent between regular conversations, and DSH handles approvals. If a wait times out, ask the AI to check the same task again to avoid sending it twice. [Communication and wait details (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)
 

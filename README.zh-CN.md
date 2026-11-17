@@ -6,15 +6,13 @@
 
 ![DSH 对话中的已创建会话卡片和 SQLite 建议，右侧会话面板列出新建的对话](https://raw.githubusercontent.com/Ryuu-64/dsh-session-tools/main/docs/screenshots/session-create-card.png)
 
-*DSH Web `0.2.2-rc.3` 的示例。点击「SQLite 与 PostgreSQL」就能打开新会话，右侧「会话」页签也能找到它。*
+*点击卡片上的「SQLite 与 PostgreSQL」即可打开新会话，也可以从右侧「会话」页签打开。*
 
 ## 安装
 
 把下面这句话发给能操作你电脑的 AI。
 
 > 请帮我安装这个 DSH 插件，检查兼容性并确认已启用：https://github.com/Ryuu-64/dsh-session-tools
-
-DSH `0.2.2-rc.3` 需要使用 GitHub 当前源码，因为 npm `0.8.0` 尚未包含这次兼容性更新。 [手动安装说明](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md)
 
 ## 派出第一个任务
 
@@ -29,7 +27,7 @@ DSH `0.2.2-rc.3` 需要使用 GitHub 当前源码，因为 npm `0.8.0` 尚未包
 ## 会话通信设置
 
 - **设置当前会话**：顶部「会话通信与相关对话」按钮打开右侧「会话」页签。你可以分别控制接收和发送，也可以用左侧会话的「…」菜单打开「会话通信…」。
-- **设置整个 profile 的默认值（当前源码）**：打开左侧「插件」，找到「会话工具」并点组件行的「配置」。两项初始值均开启。保存后，默认值对未单独设置的会话生效，重启后继续使用。
+- **设置整个 profile 的默认值**：打开左侧「插件」，找到「会话工具」并点组件行的「配置」。两项初始值均开启。保存后，默认值对未单独设置的会话生效，重启后继续使用。
 
 关闭开关会拒绝相应的新投递，已接收的任务继续运行。关闭发送也会阻止创建带首条消息的新会话。插件只在普通会话之间派任务，审批仍由 DSH 决定。等待超时后，可请 AI 继续查同一次任务的结果，避免重复派发。 [通信开关和等待规则](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)
 
