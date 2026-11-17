@@ -1,4 +1,27 @@
+# Dependencies
 node_modules/
+
+# Local environment (keep shareable templates)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
+# Generated packages and diagnostics; output these outside the repository
 *.tgz
 *.log
+.qa/
+.tmp/
+tmp/
+evidence/
+web-evidence/
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# OS metadata
 .DS_Store
+Thumbs.db
+Desktop.ini
