@@ -1,4 +1,4 @@
-/** Real rc.2 Cordis/Loader/Agent/persistence; only the external model is scripted.
+/** Real Cordis/Loader/Agent/persistence; only the external model is scripted.
  * The isolated host composition follows the Issue #5 test foundation.
  */
 import { test } from 'node:test';
@@ -9,6 +9,7 @@ import { LlmAdapter, createUserMessage } from '@deepseek-ai/dsh-llm';
 import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { mountNativeToolExecutor } from './helpers/tool-executor.mjs';
 
 async function host(t) {
   const root = await mkdtemp(join(tmpdir(), 'session-wait-'));
@@ -30,6 +31,7 @@ async function host(t) {
   for (const entry of JSON.parse(await readFile(configPath, 'utf8'))) await loader.create(entry);
   await loader.create({ name: new URL('../lib/index.js', import.meta.url).href });
   await loader.await();
+  await mountNativeToolExecutor(ctx);
   ctx.on('approval/request', () => 'allowed-once');
   let calls = 0;
   class Model extends LlmAdapter {

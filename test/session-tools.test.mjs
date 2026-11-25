@@ -10,6 +10,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const plugin = await import(new URL("../lib/index.js", import.meta.url).href);
+const { withCommunicationHost } = await import(new URL("./helpers/communication-host.mjs", import.meta.url).href);
 
 const ANSWER_OLD = "上一轮的答案";
 const ANSWER_NEW = "这一轮的新答案";
@@ -45,11 +46,11 @@ function build({ agentFor = () => undefined, query, policy = "ask" } = {}) {
       return undefined;
     },
   };
-  plugin.apply(ctx);
+  plugin.apply(withCommunicationHost(ctx));
   return Object.fromEntries(registered.map((definition) => [definition.name, definition]));
 }
 
-const execFor = (name) => ({ agent: { id: "self" }, name, callId: "call-1" });
+const execFor = (name) => ({ agent: { id: "self", session: { header: { id: "self" } } }, name, callId: "call-1" });
 
 /**
  * An agent that models the host's real timing, taken from
@@ -355,7 +356,7 @@ test("list_sessions marks archived sessions and reports state", async () => {
       return undefined;
     },
   };
-  plugin.apply(ctx);
+  plugin.apply(withCommunicationHost(ctx));
   const listed = registered.find((d) => d.name === "list_sessions");
   const result = await listed.execute({}, execFor("list_sessions"));
 

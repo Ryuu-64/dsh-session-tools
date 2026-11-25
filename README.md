@@ -1,67 +1,45 @@
-# dsh-session-tools
+# dsh-session-tools · Cross-session tasks for DeepSeek Harness
 
-让 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中的 AI 新建会话、给其他会话派任务，并把结果带回来。
+English | [简体中文](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/README.zh-CN.md)
 
-适合把独立的调查或整理工作交给另一个会话，省去手动新建、复制背景、来回转述。新会话会出现在侧边栏，你可以随时打开，直接继续对话。
+npm: [@ryuu-64/dsh-session-tools](https://www.npmjs.com/package/@ryuu-64/dsh-session-tools) · Maintained by [Ryuu-64](https://github.com/Ryuu-64).
 
-## 安装
+Ask the AI in [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) to start a separate conversation, give it a task, and bring the result back to your current chat.
 
-需要已能正常使用的 DSH 和模型配置，以及 **Node.js 22.19+（22 系列）或 24.x**。`dsh plugin` 使用 pnpm 管理插件；请确保它在命令行中可用。
+![DSH’s Chinese interface showing a new conversation card, the SQLite recommendation, and the related conversation in the right sidebar](https://raw.githubusercontent.com/Ryuu-64/dsh-session-tools/main/docs/screenshots/session-create-card.png)
 
-**先确认版本：** npm 发布版 `0.6.0` 的宿主回归基线是 DSH `0.1.5-rc.2`，不含 `0.2.0-rc.2` 适配。该适配已合入仓库 `main`，尚未发布到 npm；使用 DSH 0.2 时，请先看[源码安装与兼容说明](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md)。不声明支持 `0.2.1-alpha.1` 或未知后续版本。
+*In the Chinese interface, the card opens the new SQLite and PostgreSQL conversation. You can also open it from the right sidebar.*
 
-在终端中安装到你使用的宿主配置（profile），下面以 `web` 为例：
+## Install
 
-```sh
-dsh plugin --profile web add @ryuu-64/dsh-session-tools@0.6.0
-```
+Copy this request into an AI assistant that can operate your computer.
 
-安装后重启对应的 DSH 宿主。插件没有额外配置项；自定义宿主配置还需满足[服务要求](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/compatibility.md)。
+> Install this plugin in my DSH setup, check compatibility, and confirm it is enabled: https://github.com/Ryuu-64/dsh-session-tools
 
-## 开始使用
+## Delegate your first task
 
-在 DSH 对话中直接说你想做什么，无需自己填写工具参数。例如：
+In a DSH conversation, try:
 
-> 帮我新建一个叫「方案比较」的会话，比较 SQLite 和 PostgreSQL 在本地单人记账应用中的优缺点，给出推荐和理由。等它回答后，把结果告诉我。
+> Start a conversation called “SQLite vs. PostgreSQL”. Ask it to compare both databases for a local budgeting app used by one person, then bring back its recommendation.
 
-1. AI 准备好任务，并请求新建会话的确认。
-2. 允许后，新会话开始处理任务。点「已创建会话」卡片上的按钮，就能打开它。
-3. AI 可以等待这次消息的结果，再回到当前对话中继续回答。一次等待默认 60 秒、最多 5 分钟；超时后可以接着查，不必重新派任务。
+Approve the request if DSH prompts you. Once the new conversation finishes, the AI can bring its answer back to the original chat. Click the conversation name in the creation card (「已创建会话」) to open it and see the full exchange. For a follow-up, ask the AI to find the conversation by title and tell it what to do next.
 
-也可以对已有会话说：
+Include the background, file paths, and expected result in the task. The new conversation starts with the task text you provide.
 
-> 先列出最近的会话，找到「方案比较」，让它再补充数据导出的注意事项。
+In 0.9.0, ask the AI to steer a working conversation when your message should reach its next model step. Ordinary sends queue a separate turn. A running tool call can finish before the steering takes effect.
 
-**把任务背景写完整。** 插件不会自动把当前对话复制给目标会话；对方需要的背景、文件路径和预期结果都应写进任务。
+When DSH has its goal service and round driver enabled, you can ask the AI to give a direct child session a persistent goal with a round limit. The parent can check, edit, pause, resume, or clear a goal it granted. Run these changes from a turn where you are talking directly to the parent. [Goal and receipt details (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)
 
-## 能做什么
+## Communication settings
 
-| 你想做的事 | AI 使用的工具 |
-| --- | --- |
-| 新建一个可独立继续对话的会话，可放入已有工作区 | `session_create` |
-| 给另一个普通会话发送新消息 | `session_send` |
-| 按最近对话活动列出会话，查看标题和状态 | `list_sessions` |
-| 查询某次消息的结果，或查看会话概况 | `session_wait` |
+- **For one conversation.** Open the session panel from the chat header or use the conversation’s **…** menu. Sending and receiving are separate switches.
+- **For the whole profile.** Open **Plugins**, find **Session Tools**, and select **Configure** on the component row. Both defaults start on. Saved defaults apply to conversations without their own settings and survive restarting DSH.
 
-创建时可指定标题；不指定时，从首条任务生成固定标题，不额外调用模型。之后你仍可手动改名。
+Turning a switch off blocks new messages in that direction. Work already received can continue. Turning off sending also blocks creation of a session with a first message. Tasks can be sent between regular conversations, and DSH handles approvals. If a wait times out, ask the AI to check the same task again to avoid sending it twice. [Communication and wait details (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)
 
-## 权限与限制
+## Further reading and feedback
 
-- **新建和发送通常需要确认。** 只有宿主明确同时启用完全访问权限与免审批时才跳过确认；宿主的拒绝规则仍然生效。列出和等待是只读操作。
-- **等待超时不等于失败。** 取消等待也不会取消目标任务。继续查询同一次消息要同时使用回执里的 `sessionId` 和 `messageId`，不要自动重发。轮次正常结束也不保证任务本身做成功。
-- **只操作普通会话。** 不能向当前会话自己发消息，也不能向子代理发消息。列表包含已归档的普通会话，并标明归档状态。
-- **工作区必须已存在。** 插件不会创建工作区，也不提供会话创建后跨工作区搬移的功能。
-- **目标仍依赖 DSH 运行。** 发送消息可重新打开已关闭的会话，但它必须保存过工作目录；只读等待不会唤醒目标。插件不提供宿主关闭后的后台执行服务。
+- [Host compatibility (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/compatibility.md) · [Tool and receipt reference (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)
+- [Open an issue](https://github.com/Ryuu-64/dsh-session-tools/issues) with your DSH, Node.js, and plugin versions, your installation source, and steps to reproduce the problem. Remove API keys and private conversation text before posting. QQ discussion group `1129212995`.
 
-更多参数、状态和出错处理见[工具参考](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)。
-
-## 文档与反馈
-
-- [安装、源码使用与卸载](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/installation.md)
-- [版本、升级注意事项与宿主要求](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/compatibility.md)
-- [工具参数与消息回执](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)
-- [开发与回归检查](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/development.md)
-
-遇到问题或有建议，请[提交 Issue](https://github.com/Ryuu-64/dsh-session-tools/issues)。请附上 DSH、Node.js 和插件版本、安装方式，以及可复现的步骤；不要贴 API 密钥或私密对话。
-
-由 [Ryuu-64](https://github.com/Ryuu-64) 维护，采用 [MIT 许可证](LICENSE)。
+[MIT license](https://github.com/Ryuu-64/dsh-session-tools/blob/main/LICENSE)

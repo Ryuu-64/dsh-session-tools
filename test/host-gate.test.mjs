@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { Context } from '@deepseek-ai/cordis';
 import { ToolRuntime } from '@deepseek-ai/dsh-tools';
 import { apply } from '../lib/index.js';
+import { withCommunicationHost } from './helpers/communication-host.mjs';
+import { executeTool, mountNativeToolExecutor } from './helpers/tool-executor.mjs';
 
 // Real official ToolRuntime and Cordis event dispatch, isolated from DSH UI,
 // persistence and agent execution. The runtime gate must precede plugin policy.
@@ -11,15 +13,16 @@ for (const name of ['session_create', 'session_send']) {
     const ctx = new Context();
     ctx.provide('systemPrompt', { tools() {} });
     new ToolRuntime(ctx);
+    await mountNativeToolExecutor(ctx);
     let serviceReads = 0;
     const toolContext = {
       tools: ctx.tools,
       get() { serviceReads++; throw new Error('plugin body must not run'); },
       agents: { get() { throw new Error('plugin body must not run'); } },
     };
-    apply(toolContext);
+    apply(withCommunicationHost(toolContext));
     ctx.on('tools/pre-execute', () => ({ kind: 'deny', reason: 'host says no' }));
-    const result = await ctx.tools.execute({
+    const result = await executeTool(ctx, {
       name, callId: 'host-gate',
       arguments: name === 'session_create' ? { prompt: 'hello' } : { sessionId: 'target', message: 'hello' },
       signal: new AbortController().signal,

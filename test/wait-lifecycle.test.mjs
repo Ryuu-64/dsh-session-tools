@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { getEventListeners } from 'node:events';
 import { apply } from '../lib/index.js';
+import { withCommunicationHost } from './helpers/communication-host.mjs';
 
 function fixture({ cold = false, query: suppliedQuery, persistence } = {}) {
   const tools = {};
@@ -17,13 +18,13 @@ function fixture({ cold = false, query: suppliedQuery, persistence } = {}) {
     cancel() { throw new Error('must not cancel target'); },
   };
   const query = suppliedQuery ?? { listSessions: async () => [{ header: target.session.header }], readSession: async () => ({ events: [] }) };
-  apply({
+  apply(withCommunicationHost({
     tools: { register: d => { tools[d.name] = d; } },
     agents: { get: () => cold ? undefined : target, create: async () => ({ agent: target, dispose: async () => { disposed++; } }) },
     workspaceRegistry: { list: () => [] }, sessionTitle: { get: () => undefined, rename() {} },
     agentDefaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
     get: name => ({ sessionQuery: query, sessionPersistence: persistence, sandboxPolicy: { resolve: () => ({ mode: 'danger-full-access' }) }, approval: { overrideOf: () => 'never', request: async () => 'allowed-once' } })[name],
-  });
+  }));
   const controller = new AbortController();
   const exec = { name: 'fixture', callId: 'call', signal: controller.signal, agent: { id: 'caller', session: { header: { id: 'caller', cwd: '/fixture' } } } };
   return { tools, target, delivered, controller, exec, disposed: () => disposed };
@@ -173,7 +174,12 @@ test('a completed default-budget wait does not keep a child process alive', asyn
     import { apply } from ${JSON.stringify(new URL('../lib/index.js', import.meta.url).href)};
     let wait;
     const target = { status: 'idle', whenIdle: async () => {}, session: { snapshotEvents: () => [] } };
-    apply({ tools: { register: d => { if (d.name === 'session_wait') wait = d; } }, agents: { get: () => target } });
+    const records = new Map();
+    apply({
+      tools: { register: d => { if (d.name === 'session_wait') wait = d; } }, agents: { get: () => target },
+      get: name => name === 'storageDomain' ? { open: async () => ({ table: () => ({ get: id => records.get(id), put: async (id, value) => records.set(id, value) }) }) } : undefined,
+      inject: () => undefined,
+    });
     await wait.execute({ sessionId: 'target' }, { agent: { id: 'caller' }, signal: new AbortController().signal });
   `;
   const result = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', program], { timeout: 5000 });

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { getEventListeners } from 'node:events';
 import { apply } from '../lib/index.js';
+import { withCommunicationHost } from './helpers/communication-host.mjs';
 
 const nextTick = () => new Promise(resolve => setImmediate(resolve));
 
@@ -16,7 +17,7 @@ function queuedHost({ firstFails = false } = {}) {
     sandboxPolicy: { resolve: () => ({ mode: 'workspace-write' }) },
     approval: { overrideOf: () => 'ask', async request({ callId }) { approvals.push(callId); return 'allowed-once'; } },
   };
-  apply({
+  apply(withCommunicationHost({
     tools: { register(tool) { if (tool.name === 'session_send') send = tool; } },
     agents: {
       get: () => live,
@@ -32,7 +33,7 @@ function queuedHost({ firstFails = false } = {}) {
     },
     agentDefaultModel: { currentSelection: () => ({ provider: 'fixture', model: 'scripted' }) },
     get: name => services[name],
-  });
+  }));
   return {
     started, release, messages, approvals, get resumes() { return resumes; },
     run(message, signal) {

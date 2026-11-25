@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { getEventListeners } from 'node:events';
 import { apply } from '../lib/index.js';
+import { withCommunicationHost } from './helpers/communication-host.mjs';
 
 const record = (id, createdAt, extra = {}) => ({ header: { id, createdAt, cwd: `/work/${id}`, ...extra } });
 const event = (type, time, data = {}) => ({ type, time, data });
@@ -40,7 +41,7 @@ function fixture(records, logs = {}) {
     agents: { get: () => undefined, resume: () => { stats.resumes++; throw new Error('must not resume'); } },
     get: name => services[name],
   };
-  apply(ctx);
+  apply(withCommunicationHost(ctx));
   return { records, logs, live, stats, services, revisions, query, persistence,
     beforeRead: fn => { beforeRead = fn; },
     list: (limit, signal) => tools.get('list_sessions').execute(limit === undefined ? {} : { limit }, { agent: { id: 'A' }, signal }),

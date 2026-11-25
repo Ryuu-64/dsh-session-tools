@@ -49,8 +49,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: |
           mkdir -p evidence/artifact
-          npm pack --ignore-scripts --pack-destination evidence/artifact
-          node scripts/reading-return/real-host-browser.mjs 0.2.0-rc.2 evidence/artifact/ryuu-64-dsh-session-tools-0.6.0.tgz evidence/browser evidence/host/manifest.json
+          artifact=$(npm pack --ignore-scripts --silent --pack-destination evidence/artifact)
+          node scripts/reading-return/real-host-browser.mjs 0.2.0-rc.2 "evidence/artifact/$artifact" evidence/browser evidence/host/manifest.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

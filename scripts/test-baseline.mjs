@@ -1,30 +1,18 @@
-/** Configure the isolated CI checkout for a previously supported host release. */
+/** Select the newer exact SDK in a disposable test checkout. */
 import { readFile, writeFile, rm } from 'node:fs/promises';
-const version = process.argv[2];
-if (!['0.1.5-rc.2', '0.1.5-rc.3', '0.1.6-alpha.1', '0.1.6-alpha.2'].includes(version)) throw new Error('Unknown legacy test baseline');
-const pkg = JSON.parse(await readFile('package.json', 'utf8'));
-// These APIs were introduced with the 0.2 browser split; their integration
-// tests run only on 0.2. Legacy hosts run the legacy navigation contract.
-const clientOnly = ['dsh-client-store', 'dsh-client-ui-workspace', 'dsh-client-ui-primitives', 'dsh-api-session-controller', 'dsh-client-ui-renderer', 'dsh-client-ui-layout'];
-for (const section of ['devDependencies', 'overrides']) {
-  for (const name of Object.keys(pkg[section])) {
-    if (clientOnly.includes(name.replace('@deepseek-ai/', ''))) delete pkg[section][name];
-    else if (name.startsWith('@deepseek-ai/dsh-')) pkg[section][name] = version;
-  }
-}
-// These appeared in the 0.1.6 family with permissive prerelease peers.
-// Keep alpha.1 isolated from alpha.2; otherwise the matrix is not that SDK.
-if (version.startsWith('0.1.6-')) {
-  for (const name of ['attachment', 'commands', 'compaction']) {
-    pkg.overrides[`@deepseek-ai/dsh-${name}`] = version;
-  }
-}
-// Read the host's matching published peer constraints via npm resolution.
-// 0.1.5/0.1.6 ship against this common Cordis / Loader family.
-pkg.devDependencies['@deepseek-ai/cordis'] = '4.0.2';
-pkg.devDependencies['@deepseek-ai/cordis-plugin-loader'] = '1.0.3';
-pkg.devDependencies['@deepseek-ai/schemastery'] = '3.18.2';
-await writeFile('package.json', JSON.stringify(pkg, null, 2) + '\n');
 
-// Re-resolve a clean legacy graph instead of retaining newer optional peers.
+const version = process.argv[2];
+if (!['0.2.2-rc.3', '0.2.2-rc.5'].includes(version)) throw new Error('Unknown alternate test baseline');
+
+const pkg = JSON.parse(await readFile('package.json', 'utf8'));
+for (const dependencies of [pkg.devDependencies, pkg.overrides]) {
+  for (const name of Object.keys(dependencies)) {
+    if (name.startsWith('@deepseek-ai/dsh-')) dependencies[name] = version;
+    if (name.startsWith('@deepseek-ai/cordis-plugin-')) dependencies[name] = '1.1.0';
+  }
+}
+pkg.devDependencies['@deepseek-ai/cordis'] = '4.1.0';
+pkg.devDependencies['@deepseek-ai/schemastery'] = '3.19.0';
+pkg.devDependencies['@deepseek-ai/dsh-tool-executor-native'] = version;
+await writeFile('package.json', JSON.stringify(pkg, null, 2) + '\n');
 await rm('package-lock.json', { force: true });

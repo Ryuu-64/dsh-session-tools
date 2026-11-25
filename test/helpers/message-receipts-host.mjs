@@ -4,6 +4,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ScriptedModel } from './real-host.mjs';
+import { mountNativeToolExecutor } from './tool-executor.mjs';
 
 export const user = text => createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text }] });
 export async function* textChunks(text) {
@@ -27,7 +28,13 @@ export function gate() {
 }
 
 /** Official rc.2 host with restartable, workspace-local JSONL storage. */
-export async function receiptHost(t, { titleConfig = { fallbackMaxWords: 8, fallbackMaxBytes: 100, maxTitleBytes: 100 } } = {}) {
+export async function receiptHost(t, {
+  titleConfig = { fallbackMaxWords: 8, fallbackMaxBytes: 100, maxTitleBytes: 100 },
+  onApproval = () => 'allowed-once',
+  withGoals = false,
+  withGoalDriver = withGoals,
+  goalConfig,
+} = {}) {
   const root = await mkdtemp(join(process.cwd(), '.receipt-host-'));
   const contexts = [], gates = [];
   t.after(async () => {
@@ -35,7 +42,7 @@ export async function receiptHost(t, { titleConfig = { fallbackMaxWords: 8, fall
     for (const ctx of contexts.reverse()) await ctx.fiber.dispose();
     await rm(root, { recursive: true, force: true });
   });
-  const start = async () => {
+  const start = async (driveGoals = withGoalDriver) => {
     const ctx = new Context(); contexts.push(ctx);
     const loader = new Loader(ctx, { baseUrl: new URL('../../', import.meta.url).href });
     const entries = [
@@ -46,14 +53,17 @@ export async function receiptHost(t, { titleConfig = { fallbackMaxWords: 8, fall
       ['dsh-session-title', titleConfig],
       ['dsh-agent-default-model', { provider: 'fixture', model: 'scripted' }],
       ['dsh-user-approval', { policy: 'ask' }], ['dsh-sandbox-policy'], ['dsh-agent-loop', { agents: [] }],
+      ...(withGoals ? [['dsh-goal', goalConfig]] : []),
+      ...(driveGoals ? [['dsh-goal-round-driver']] : []),
     ].map(([name, config]) => ({ name: `@deepseek-ai/${name}`, ...(config && { config }) }));
     const configFile = join(root, 'plugins.json');
     await writeFile(configFile, JSON.stringify(entries));
     for (const entry of JSON.parse(await readFile(configFile, 'utf8'))) await loader.create(entry);
-    await loader.create({ name: new URL('../../lib/index.js', import.meta.url).href });
+    const pluginId = await loader.create({ name: new URL('../../lib/index.js', import.meta.url).href });
     await loader.await();
+    await mountNativeToolExecutor(ctx);
     const model = new ScriptedModel(); ctx.llm.registerAdapter(['fixture'], model);
-    ctx.on('approval/request', () => 'allowed-once');
+    ctx.on('approval/request', onApproval);
     const create = id => ctx.agents.create({ sessionId: id, meta: { cwd: root }, agentOptions: { provider: 'fixture', model: 'scripted' } });
     const holdCaller = async (id = 'caller') => {
       const started = Promise.withResolvers(), hold = gate(); gates.push(hold);
@@ -66,7 +76,7 @@ export async function receiptHost(t, { titleConfig = { fallbackMaxWords: 8, fall
       try { return { ...await reader.read(), header: reader.header, inheritedEventCount: reader.inheritedEventCount }; }
       finally { await reader.close(); }
     };
-    return { ctx, loader, model, create, holdCaller, read, root, restart: async () => { await ctx.fiber.dispose(); return start(); } };
+    return { ctx, loader, pluginId, model, create, holdCaller, read, root, restart: async driveGoals => { await ctx.fiber.dispose(); return start(driveGoals); } };
   };
   return start();
 }

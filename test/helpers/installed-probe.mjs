@@ -2,9 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { realHost } from './real-host.mjs';
-import { createRequire } from 'node:module';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
-const require = createRequire(import.meta.url);
 
 test('installed tarball runs create/send/wait/list through real host services and persists provenance', async t => {
   const h = await realHost(t, { pluginPath: import.meta.resolve('@ryuu-64/dsh-session-tools') });
@@ -49,14 +47,12 @@ test('installed tarball runs create/send/wait/list through real host services an
     assert.deepEqual(new Set(messages.map(e => e.data.id)), new Set([created.messageId, sent.messageId]));
     for (const message of messages) assert.deepEqual(message.data.source, { kind: 'tool-session', form: 'relay' });
   } finally { await reader.close(); }
-  if (require('@deepseek-ai/dsh-agent/package.json').version === '0.2.0-rc.2') {
-    const { clientRc2 } = await import('./client-rc2.mjs');
-    const browser = await clientRc2(t, { ids: [created.sessionId], pluginPath: new URL(import.meta.resolve('@ryuu-64/dsh-session-tools/client')) });
-    await browser.mountWorkspace();
-    browser.click(created.sessionId);
-    await new Promise(resolve => setImmediate(resolve));
-    assert.equal(browser.ctx.sessions.binding(created.sessionId).session.getSnapshot().openState, 'open');
-    assert.equal(browser.ctx.sessions.retainInfo(created.sessionId).getSnapshot().retainedBy.mainView, 1);
-    assert.deepEqual(browser.cancelled, []);
-  }
+  const { clientRc2 } = await import('./client-rc2.mjs');
+  const browser = await clientRc2(t, { ids: [created.sessionId], pluginPath: new URL(import.meta.resolve('@ryuu-64/dsh-session-tools/client')) });
+  await browser.mountWorkspace();
+  browser.click(created.sessionId);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(browser.ctx.sessions.binding(created.sessionId).session.getSnapshot().openState, 'open');
+  assert.equal(browser.ctx.sessions.retainInfo(created.sessionId).getSnapshot().retainedBy.mainView, 1);
+  assert.deepEqual(browser.cancelled, []);
 });

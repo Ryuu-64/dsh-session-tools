@@ -2,11 +2,32 @@
 
 [返回 README](../README.md)
 
-请区分 npm 发布包与仓库源码：`0.6.0` 是已发布版本；DSH `0.2.0-rc.2` 适配已合入 `main`，但尚未随新版 npm 包发布。包内版本号仍为 `0.6.0`，不能仅凭版本号判断是否包含源码改动。
+## 安装来源与支持的 DSH
 
-## main 中的 0.2 适配（尚未发布到 npm）
+| 安装来源 | 支持的 DSH | 会话通信 |
+| --- | --- | --- |
+| `0.9.0` | `0.2.0-rc.2`、`0.2.2-rc.3`、`0.2.2-rc.5` | 增加插话和子会话持续目标，沿用逐会话开关和 profile 默认值。 |
+| npm `0.8.1`、`0.8.2` | `0.2.0-rc.2`、`0.2.2-rc.3` | 逐会话开关，以及对无记录会话生效的 profile 默认值。 |
 
-当前 main 增加 DSH `0.2.0-rc.2` 的兼容，保留原有 peer 范围；不声明支持 `0.2.1-alpha.1`，也不新增返回入口。npm 上已经发布的 `0.6.0` 不含本次适配，请勿把 main 的说明理解为旧包已经支持 0.2。
+使用 DSH `0.2.2-rc.3` 或 `0.2.2-rc.5` 时，请使用 Node.js `24.9.0` 或更新的 24 系列版本。以对应版本清单中的 `engines.dsh` 和 DSH SDK peer 依赖为准。 [npm 包](https://www.npmjs.com/package/@ryuu-64/dsh-session-tools) · [源码清单](../package.json) · [安装](../README.md#install)
+
+持续目标需要宿主的 `dsh-goal` 服务。新建或恢复目标还需对应的原生 `dsh-goal-round-driver` 处于运行状态。基础通信工具可独立运行。 [工具参考](tool-reference.md#session_goal-管理子会话的持续目标)
+
+自定义 profile 若要提供「插件」里的默认开关，需要 DSH 的 `configForms` 和可编辑的插件配置服务。逐会话开关使用宿主认证的通信接口和 `storageDomain`，权限记录无法读取时会拒绝新投递。 [通信开关参考](tool-reference.md#当前通信开关)
+
+### DSH 0.2.2-rc.3 适配
+
+- 消息回执等待异步注册并保存投影句柄。注册被拒绝或句柄暂不可用时，从会话日志计算回执。`0.2.0-rc.2` 在同步注册成功后按键读取。 [Session 投影迁移指南](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/docs/upgrade-guide/v0.2.1-rc.2/session-projection-handles/guide.zh.md)
+- `session_create` 通过 `agent.model.current()` 继承调用方下一步选定的 provider、model 和已指定的推理强度，通过 `agentPresets.presetForSession()` 读取已记录的预设。`0.2.0-rc.2` 通过宿主投影读取相应的选择。 [模型选择实现](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/core/agent/src/model-selection.ts) · [Session 投影迁移指南](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/docs/upgrade-guide/v0.2.1-rc.2/session-projection-handles/guide.zh.md)
+- 工具仍通过 `tools.register` 注册。`0.2.2-rc.3` 的真实宿主测试组合由官方 native 工具执行器运行模型发起的调用，并覆盖会话创建、发送、恢复、等待和取消。 [工具注册接口](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/core/tools/README.md) · [官方基础组合](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/bundle/base/cordis.patch.yml)
+
+## 0.8.0
+
+npm 上的 `0.8.0` 面向 DSH `0.2.0-rc.2`，新增逐会话通信控制和「会话」右侧栏。自定义宿主需提供 `storageDomain`、`typert`、`connection`，以及原生会话菜单、UI primitives 和右侧栏。 [0.8.0 发布说明](release-0.8.0.md)
+
+## 0.7.0 中的 0.2 适配
+
+`0.7.0` 增加 DSH `0.2.0-rc.2` 的兼容，保留原有 peer 范围；不声明支持 `0.2.1-alpha.1`，也不新增返回入口。npm 上已经发布的 `0.6.0` 不含本次适配，升级时请核对实际安装的插件版本。
 
 - 0.2 的创建卡片经公开 `uiWorkspace.openSession` 导航；旧宿主仍使用 `sessions.open`。插件等待真实导航服务注入，宿主负责主视图的持有、切换和释放，不额外开一个读取引用
 - 消息使用独立生产者来源 `tool-session`（`form=relay`）。0.2 的 V4 日志拒绝旧的 `kind=plugin` 包装；旧 V3 日志允许并保留这个生产者来源。回执中的会话和消息身份不变
@@ -32,4 +53,10 @@
 - **官方配置证据**：同版本的 [Web 组合加载 workspace](https://github.com/deepseek-ai/deepseek-harness/blob/fb2c4b9e698e30edb738bca4cf0618587db7d203/packages/bundle/web-app/cordis.patch.yml#L75-L76)，[Desktop 复用 Web 组合](https://github.com/deepseek-ai/deepseek-harness/blob/fb2c4b9e698e30edb738bca4cf0618587db7d203/apps/desktop-host/config/desktop.cordis.patch.yml#L1-L6)。workspace 并非桌面版独有。缺少该服务的 headless 配置无法加载本插件；不能据此宣布所有 headless 配置可用
 - **已运行的宿主回归**：使用仓库的[临时 Loader 配置](../test/helpers/real-host.mjs)和[可重启 JSONL 配置](../test/helpers/message-receipts-host.mjs)，加载真实 rc.2 宿主组件；最近活动排序测试另加载真实 `sessionQuery`。这些是测试专用配置，模型请求与人工审批答复使用脚本替代，不是完整的官方 Web 或 Desktop profile 验收
 
-服务出现在官方配置中，与本插件已在该完整配置中通过验收，是两件事。本节的旧版宿主回归不覆盖完整 Web 浏览器或 Desktop UI 的端到端使用，也不能单独证明其他宿主配置或 DSH 0.2 可用。main 的 0.2 适配与现有回归范围见[开发文档](development.md)。
+服务出现在官方配置中，与本插件已在该完整配置中通过验收，是两件事。本节的旧版宿主回归不覆盖完整 Web 浏览器或 Desktop UI 的端到端使用，也不能单独证明其他宿主配置或 DSH 0.2 可用。0.7.0 的 0.2 适配与现有回归范围见[开发文档](development.md)。
+
+### 更新与结果校验边界
+
+当前源码在最后一个插件实例卸载时等待已开始的通信存储操作完成，然后关闭 storageDomain。加载新实例后，会重新打开原有记录。若旧版已在当前进程中打开存储，升级后须重启一次，以释放旧版持有的存储。
+
+rc.2 的 strict Remote 描述符用于声明接口约定；结果的 `create().parse` 不会被 Gateway 自动调用。服务端从经过校验的存储记录构造返回值，浏览器另行核对权限布尔值、revision 和保存状态，不能将描述符声明单独视作结果严格校验证据。
