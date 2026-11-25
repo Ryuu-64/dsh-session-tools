@@ -668,6 +668,17 @@ async function visibleAnchor(root) {
     return { key: row.dataset.chatAnchorKey, top: row.getBoundingClientRect().top - scroll.getBoundingClientRect().top };
   });
 }
+async function openTransactionSession(page, label) {
+  // A fresh context can mount the workspace UI before receiving its catalog.
+  // This case exercises native restore, so select the known seed by catalog ID.
+  await page.waitForFunction(id => {
+    const catalog = window.__readingReturnFixture?.catalog(id);
+    return catalog?.phase === 'ready' && catalog.containsSession;
+  }, ids[label], { timeout: 30000 });
+  await page.evaluate(id => window.__readingReturnFixture.openSession(id), ids[label]);
+  await mainRoot(page, label).getByText(`RETURN_${label}_USER_80`, { exact: false }).last().waitFor();
+}
+
 async function exerciseNativeTransactions(page, url, fixture, output) {
   const context = await page.context().browser().newContext({
     viewport: { width: 1400, height: 900 }, locale: 'en-US',
@@ -676,10 +687,7 @@ async function exerciseNativeTransactions(page, url, fixture, output) {
   const isolated = await context.newPage();
   try {
     await isolated.goto(url, { waitUntil: 'load' });
-    await isolated.getByRole('button', { name: 'Search sessions' }).waitFor({ timeout: 30000 });
-    await isolated.waitForFunction(() => Boolean(window.__readingReturnFixture));
-
-    await openFromSidebar(isolated, 'P'); await waitAtTail(isolated, 'P');
+    await openTransactionSession(isolated, 'P'); await waitAtTail(isolated, 'P');
     await isolated.evaluate(id => window.__readingReturnFixture.captureNative(id, 'changed'), ids.P);
     // Collapse content after the saved reading line through the real preference API.
     await isolated.evaluate(() => window.__readingReturnFixture.setTranscript('standard'));
@@ -699,7 +707,7 @@ async function exerciseNativeTransactions(page, url, fixture, output) {
     await waitNoRestoreReference(isolated, 'P');
     await isolated.evaluate(() => window.__readingReturnFixture.setTranscript('verbose'));
 
-    await openFromSidebar(isolated, 'Q'); await historyThrough(isolated, 'Q', 20);
+    await openTransactionSession(isolated, 'Q'); await historyThrough(isolated, 'Q', 20);
     await mainRoot(isolated, 'Q').getByText('RETURN_Q_USER_20', { exact: false }).scrollIntoViewIfNeeded();
     const capture = await visibleAnchor(mainRoot(isolated, 'Q'));
     await isolated.evaluate(id => window.__readingReturnFixture.captureNative(id, 'interrupted'), ids.Q);
@@ -738,14 +746,15 @@ async function exerciseNativeTransactions(page, url, fixture, output) {
     // This context closes below; the runner's main-page failure capture cannot
     // show this page's actual search, selection or transaction state.
     await isolated.screenshot({ path: path.join(output, 'native-transaction-failure.png'), timeout: 5000 }).catch(() => {});
-    const evidence = await isolated.evaluate(() => ({
+    const evidence = await isolated.evaluate(({ P, Q }) => ({
       text: document.body.innerText,
       inputs: [...document.querySelectorAll('input')].filter(input => /^Search sessions|^Search session names/.test(input.placeholder))
         .map(input => ({ placeholder: input.placeholder, value: input.value })),
       results: [...document.querySelectorAll('[role="treeitem"]')].map(row => row.textContent),
       sessions: [...document.querySelectorAll('[data-conversation-session]')].map(root => root.dataset.conversationSession),
       fixtureLoaded: Boolean(window.__readingReturnFixture),
-    })).catch(() => null);
+      catalog: { P: window.__readingReturnFixture?.catalog(P), Q: window.__readingReturnFixture?.catalog(Q) },
+    }), { P: ids.P, Q: ids.Q }).catch(() => null);
     try {
       if (evidence) fs.writeFileSync(path.join(output, 'native-transaction-failure.json'), JSON.stringify(evidence, null, 2));
     } catch { /* Preserve the original scenario failure if artifact writing fails. */ }

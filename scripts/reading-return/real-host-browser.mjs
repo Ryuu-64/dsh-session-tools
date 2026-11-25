@@ -53,7 +53,7 @@ fs.copyFileSync(new URL('./fixture-client.js', import.meta.url), path.join(fixtu
 fs.writeFileSync(path.join(fixture, 'package.json'), JSON.stringify({
   name: '@reading-return/fixture', version: '0.0.0', private: true, type: 'module',
   main: './index.mjs', exports: { '.': './index.mjs', './client': './client.js', './package.json': './package.json' },
-  dsh: { client: { platform: 'web', inject: ['@deepseek-ai/dsh-api-session-controller', '@deepseek-ai/dsh-client-ui-sidebar-right', '@deepseek-ai/dsh-client-ui-settings', '@deepseek-ai/dsh-client-ui-conversation', '@deepseek-ai/dsh-client-ui-chat'] } },
+  dsh: { client: { platform: 'web', inject: ['@deepseek-ai/dsh-api-session-controller', '@deepseek-ai/dsh-client-ui-sidebar-right', '@deepseek-ai/dsh-client-ui-settings', '@deepseek-ai/dsh-client-ui-conversation', '@deepseek-ai/dsh-client-ui-chat', '@deepseek-ai/dsh-client-ui-workspace'] } },
 }));
 const fixtureToken = randomUUID();
 secrets.add(fixtureToken);

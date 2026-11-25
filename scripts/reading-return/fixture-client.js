@@ -3,12 +3,17 @@ window.__ModuleLoader__.load({
   id: '@reading-return/fixture',
   factory() {
     return {
-      inject: ['sessions', 'sidebarRight', 'configForms', 'uiConversation', 'uiChatReading'],
+      inject: ['sessions', 'sidebarRight', 'configForms', 'uiConversation', 'uiChatReading', 'uiWorkspace'],
       apply(ctx) {
         const occurrences = new Map();
         const bookmarks = new Map(), restores = new Map();
         const address = (parent, child) => `dsh-resource://subagentchat/session/${encodeURIComponent(child)}?parent=${encodeURIComponent(parent)}&mode=unknown`;
         const bridge = {
+          catalog(id) {
+            const { phase, ids } = ctx.sessions.list.getSnapshot();
+            return { phase, size: ids.length, containsSession: ids.includes(id) };
+          },
+          openSession(id) { ctx.uiWorkspace.openSession(id); },
           captureNative(id, key) {
             const root = document.querySelector(`[data-slot="main"] [data-conversation-session="${id}"]`);
             const bookmark = ctx.uiChatReading.capture(root.querySelector('[data-chat-reading-root]'));
