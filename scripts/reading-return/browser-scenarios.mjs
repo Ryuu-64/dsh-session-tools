@@ -359,8 +359,8 @@ async function holdHistoryResponse(page, label) {
   let captured = false;
   const pattern = '**/api/session/page';
   const handler = async route => {
-    const request = route.request().postDataJSON();
-    if (captured || request?.payload?.args?.request?.sessionId !== ids[label]) return route.continue();
+    const address = route.request().postDataJSON()?.payload?.args?.request?.address;
+    if (captured || address?.kind !== 'session' || address.sessionId !== ids[label]) return route.continue();
     captured = true;
     try {
       const response = await route.fetch();
