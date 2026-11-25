@@ -6,9 +6,12 @@
 
 | 安装来源 | 支持的 DSH | 会话通信 |
 | --- | --- | --- |
-| 当前 npm 发行版（自 `0.8.1` 起）与 GitHub 当前源码 | `0.2.0-rc.2`、`0.2.2-rc.3` | 逐会话开关，以及对无记录会话生效的 profile 默认值。 |
+| `0.9.0` | `0.2.0-rc.2`、`0.2.2-rc.3`、`0.2.2-rc.5` | 增加插话和子会话持续目标，沿用逐会话开关和 profile 默认值。 |
+| npm `0.8.1`、`0.8.2` | `0.2.0-rc.2`、`0.2.2-rc.3` | 逐会话开关，以及对无记录会话生效的 profile 默认值。 |
 
-使用 DSH `0.2.2-rc.3` 时，请使用 Node.js `24.9.0` 或更新的 24 系列版本。发行包与源码的 `engines.dsh` 和 DSH SDK peer 依赖声明了上述两项确切版本。 [npm 包](https://www.npmjs.com/package/@ryuu-64/dsh-session-tools) · [源码清单](../package.json) · [安装](../README.md#install)
+使用 DSH `0.2.2-rc.3` 或 `0.2.2-rc.5` 时，请使用 Node.js `24.9.0` 或更新的 24 系列版本。以对应版本清单中的 `engines.dsh` 和 DSH SDK peer 依赖为准。 [npm 包](https://www.npmjs.com/package/@ryuu-64/dsh-session-tools) · [源码清单](../package.json) · [安装](../README.md#install)
+
+持续目标需要宿主的 `dsh-goal` 服务。新建或恢复目标还需对应的原生 `dsh-goal-round-driver` 处于运行状态。基础通信工具可独立运行。 [工具参考](tool-reference.md#session_goal-管理子会话的持续目标)
 
 自定义 profile 若要提供「插件」里的默认开关，需要 DSH 的 `configForms` 和可编辑的插件配置服务。逐会话开关使用宿主认证的通信接口和 `storageDomain`，权限记录无法读取时会拒绝新投递。 [通信开关参考](tool-reference.md#当前通信开关)
 

@@ -26,6 +26,10 @@ Approve the request if DSH prompts you. Once the new conversation finishes, the 
 
 Include the background, file paths, and expected result in the task. The new conversation starts with the task text you provide.
 
+In 0.9.0, ask the AI to steer a working conversation when your message should reach its next model step. Ordinary sends queue a separate turn. A running tool call can finish before the steering takes effect.
+
+When DSH has its goal service and round driver enabled, you can ask the AI to give a direct child session a persistent goal with a round limit. The parent can check, edit, pause, resume, or clear a goal it granted. Run these changes from a turn where you are talking directly to the parent. [Goal and receipt details (Chinese)](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/tool-reference.md)
+
 ## Communication settings
 
 - **For one conversation.** Open the session panel from the chat header or use the conversation’s **…** menu. Sending and receiving are separate switches.

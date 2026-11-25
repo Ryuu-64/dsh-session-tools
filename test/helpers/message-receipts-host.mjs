@@ -31,6 +31,9 @@ export function gate() {
 export async function receiptHost(t, {
   titleConfig = { fallbackMaxWords: 8, fallbackMaxBytes: 100, maxTitleBytes: 100 },
   onApproval = () => 'allowed-once',
+  withGoals = false,
+  withGoalDriver = withGoals,
+  goalConfig,
 } = {}) {
   const root = await mkdtemp(join(process.cwd(), '.receipt-host-'));
   const contexts = [], gates = [];
@@ -39,7 +42,7 @@ export async function receiptHost(t, {
     for (const ctx of contexts.reverse()) await ctx.fiber.dispose();
     await rm(root, { recursive: true, force: true });
   });
-  const start = async () => {
+  const start = async (driveGoals = withGoalDriver) => {
     const ctx = new Context(); contexts.push(ctx);
     const loader = new Loader(ctx, { baseUrl: new URL('../../', import.meta.url).href });
     const entries = [
@@ -50,6 +53,8 @@ export async function receiptHost(t, {
       ['dsh-session-title', titleConfig],
       ['dsh-agent-default-model', { provider: 'fixture', model: 'scripted' }],
       ['dsh-user-approval', { policy: 'ask' }], ['dsh-sandbox-policy'], ['dsh-agent-loop', { agents: [] }],
+      ...(withGoals ? [['dsh-goal', goalConfig]] : []),
+      ...(driveGoals ? [['dsh-goal-round-driver']] : []),
     ].map(([name, config]) => ({ name: `@deepseek-ai/${name}`, ...(config && { config }) }));
     const configFile = join(root, 'plugins.json');
     await writeFile(configFile, JSON.stringify(entries));
@@ -71,7 +76,7 @@ export async function receiptHost(t, {
       try { return { ...await reader.read(), header: reader.header, inheritedEventCount: reader.inheritedEventCount }; }
       finally { await reader.close(); }
     };
-    return { ctx, loader, pluginId, model, create, holdCaller, read, root, restart: async () => { await ctx.fiber.dispose(); return start(); } };
+    return { ctx, loader, pluginId, model, create, holdCaller, read, root, restart: async driveGoals => { await ctx.fiber.dispose(); return start(driveGoals); } };
   };
   return start();
 }

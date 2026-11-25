@@ -2,7 +2,7 @@
 import { readFile, writeFile, rm } from 'node:fs/promises';
 
 const version = process.argv[2];
-if (version !== '0.2.2-rc.3') throw new Error('Unknown alternate test baseline');
+if (!['0.2.2-rc.3', '0.2.2-rc.5'].includes(version)) throw new Error('Unknown alternate test baseline');
 
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
 for (const dependencies of [pkg.devDependencies, pkg.overrides]) {

@@ -112,14 +112,53 @@ test('real next-step input and followup can share a turn without stealing anothe
   assert.equal(projected.messages[extra.id].admitted, true);
 });
 
+test('session_send steers the active turn and wakes an idle target', { timeout: 15000 }, async t => {
+  const reasons = [];
+  const h = await receiptHost(t, { onApproval: ({ reason }) => { reasons.push(reason); return 'allowed-once'; } });
+  const caller = await h.holdCaller();
+  const target = await h.create('target');
+  const entered = Promise.withResolvers(), hold = gate(), next = gate(), nextEntered = Promise.withResolvers();
+  t.after(() => { hold.release(); next.release(); });
+  h.model.scripts.push(
+    async function* (options) { entered.resolve(); await hold.wait(options.signal); yield* textChunks('initial work'); },
+    async function* (options) { nextEntered.resolve(); await next.wait(options.signal); yield* textChunks('adjusted work'); },
+  );
+  target.agent.followup(user('start work'));
+  await entered.promise;
+  const start = target.agent.session.snapshotEvents().find(e => e.type === 'turn/start');
+  const receipt = await send(h, caller.exec, { delivery: 'steer', wait: false });
+  assert.equal(receipt.delivery, 'steer');
+  assert.equal(receipt.messageStatus, 'queued');
+  assert.equal(target.agent.inbox.nextStep[0].id, receipt.messageId);
+  assert.match(reasons.at(-1), /interject.*before its next step/);
+  hold.release();
+  await nextEntered.promise;
+  const delivered = await h.ctx.tools.get('session_wait').execute({
+    sessionId: receipt.sessionId, messageId: receipt.messageId, timeoutMs: 5,
+  }, {});
+  assert.equal(delivered.messageStatus, 'delivered');
+  assert.equal(delivered.turn, start.data.turn);
+  next.release();
+  assert.match((await wait(h, receipt)).output, /adjusted work/);
+  await target.agent.whenIdle();
+  h.model.text('idle steering answer');
+  const idle = await send(h, caller.exec, { delivery: 'steer' });
+  assert.equal(idle.delivery, 'steer');
+  assert.equal(idle.messageStatus, 'turnCompleted');
+  assert.notEqual(idle.turn, delivered.turn);
+  assert.equal(idle.output, 'idle steering answer');
+});
+
 test('real ToolRuntime persists send receipt identity in JSONL presentation metadata', { timeout: 15000 }, async t => {
   const h = await receiptHost(t); const target = await h.create('target');
-  h.model.tool('session_send', { sessionId: 'target', message: 'A', wait: true }); h.model.text('answer A'); h.model.text('caller done');
+  h.model.tool('session_send', { sessionId: 'target', message: 'A', delivery: 'steer', wait: true }); h.model.text('answer A'); h.model.text('caller done');
   const caller = await h.create('caller'); caller.agent.followup(user('exercise send'));
   await caller.agent.whenIdle(); await target.agent.whenIdle(); await h.ctx.sessionPersistence.flush();
   const stored = await h.read('caller'); const result = stored.events.find(e => e.type === 'tool/result');
   assert.notEqual(toolResult(result).isError, true);
   assert.equal(result.data.meta.sessionId, 'target'); assert.ok(result.data.meta.messageId);
+  assert.equal(result.data.meta.delivery, 'steer');
+  assert.match(JSON.stringify(result.data.message.content), /delivery=steer/);
   assert.match(JSON.stringify(result.data.message.content), new RegExp(result.data.meta.messageId));
   assert.equal((await wait(h, result.data.meta)).output, 'answer A');
 });

@@ -1,6 +1,6 @@
 {
   "name": "@ryuu-64/dsh-session-tools",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "description": "Delegate tasks between DeepSeek Harness (DSH) conversations: create sessions, send follow-ups, track replies, and control sending and receiving.",
   "type": "module",
   "license": "MIT",
@@ -53,19 +53,19 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-agent": "0.2.0-rc.2 || 0.2.2-rc.3",
-    "@deepseek-ai/dsh-agent-default-model": "0.2.0-rc.2 || 0.2.2-rc.3",
-    "@deepseek-ai/dsh-brand": "0.2.0-rc.2 || 0.2.2-rc.3",
-    "@deepseek-ai/dsh-llm": "0.2.0-rc.2 || 0.2.2-rc.3",
-    "@deepseek-ai/dsh-session-title": "0.2.0-rc.2 || 0.2.2-rc.3",
-    "@deepseek-ai/dsh-tools": "0.2.0-rc.2 || 0.2.2-rc.3",
-    "@deepseek-ai/dsh-workspace": "0.2.0-rc.2 || 0.2.2-rc.3",
+    "@deepseek-ai/dsh-agent": "0.2.0-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5",
+    "@deepseek-ai/dsh-agent-default-model": "0.2.0-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5",
+    "@deepseek-ai/dsh-brand": "0.2.0-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5",
+    "@deepseek-ai/dsh-client-ui-sidebar-right": "0.1.7-alpha.1 || 0.1.7-alpha.2 || 0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5",
+    "@deepseek-ai/dsh-llm": "0.2.0-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5",
+    "@deepseek-ai/dsh-session-title": "0.2.0-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5",
+    "@deepseek-ai/dsh-storage-domain": "0.2.0-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5",
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5",
+    "@deepseek-ai/dsh-workspace": "0.2.0-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5",
     "@deepseek-ai/schemastery": "^3.18.2",
-    "react": ">=18 <20",
-    "@deepseek-ai/dsh-storage-domain": "0.2.0-rc.2 || 0.2.2-rc.3",
-    "@deepseek-ai/dsh-typert-protocol": "0.2.0-rc.2 || 0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2 || 0.2.2-rc.3",
-    "@deepseek-ai/dsh-client-ui-sidebar-right": "0.1.7-alpha.1 || 0.1.7-alpha.2 || 0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.2-rc.3"
+    "react": ">=18 <20"
   },
   "files": [
     "lib",
@@ -76,7 +76,7 @@
   ],
   "engines": {
     "node": "^22.19.0 || ^24.0.0",
-    "dsh": "0.2.0-rc.2 || 0.2.2-rc.3"
+    "dsh": "0.2.0-rc.2 || 0.2.2-rc.3 || 0.2.2-rc.5"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
@@ -95,6 +95,8 @@
     "@deepseek-ai/dsh-client-ui-sidebar-right": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.0-rc.2",
     "@deepseek-ai/dsh-client-ui-workspace": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-goal": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-goal-round-driver": "0.2.0-rc.2",
     "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
     "@deepseek-ai/dsh-sandbox-policy": "0.2.0-rc.2",
     "@deepseek-ai/dsh-session": "0.2.0-rc.2",
