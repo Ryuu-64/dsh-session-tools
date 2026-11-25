@@ -125,11 +125,13 @@ export function apply(ctx) {
     }
     const live = await session(id);
     if (request.op === 'rewrite') {
-      let event = live.eventAt(SessionSeq(request.seq));
-      if (event?.type === 'tool/call') event = live.snapshotEvents().find(x => x.type === 'tool/result' && x.data.message.callId === event.data.callId);
-      if (!event) throw new Error('synthetic source marker missing');
-      if (event.surfaceOp === undefined) throw new Error('captured source event is not a replaceable message');
-      live.append('user/message', createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: `REWRITTEN_${request.marker}` }] }), { surfaceOp: { op: 'replace', startSeq: SessionSeq(event.seq), endSeq: SessionSeq(event.seq) } });
+      const event = live.eventAt(SessionSeq(request.seq));
+      if (event?.type !== 'user/message' || event.surfaceOp === undefined) throw new Error('captured source event is not a replaceable user message');
+      const seq = SessionSeq(event.seq);
+      live.append('user/message', createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: `REWRITTEN_${request.marker}` }] }), {
+        surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq },
+        sourceEventSeqs: [seq],
+      });
       return { replaced: event.seq };
     }
     throw new Error(`unknown fixture operation ${request.op}`);

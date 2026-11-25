@@ -88,7 +88,10 @@ async function openFromSidebar(page, label) {
   const search = page.getByRole('button', { name: 'Search sessions' });
   await search.waitFor({ timeout: 30000 });
   if (await search.getAttribute('aria-expanded') !== 'true') await search.click();
-  await page.getByRole('textbox', { name: /^(Search sessions\.\.\.|Search session names)$/ }).fill(`RETURN_${label}`);
+  await search.and(page.locator('[aria-expanded="true"]')).waitFor();
+  const input = page.getByRole('textbox', { name: /^(Search sessions\.\.\.|Search session names)$/ });
+  await input.focus();
+  await input.fill(`RETURN_${label}`);
   // Cold search rows can display Untitled until the Session summary is loaded.
   // Each seed's USER/ANSWER marker identifies only its own content, unlike a
   // tool card mentioning another session's title. Search rows expose no ID.
@@ -102,12 +105,20 @@ async function openFromSidebar(page, label) {
   await page.locator(`[data-conversation-session="${ids[label]}"]`).waitFor();
   await page.getByText(`RETURN_${label}_USER_80`, { exact: false }).last().waitFor();
 }
-async function openCard(page, from, to, turn) {
+async function openCard(page, from, to, turn, sourceMarker) {
   const scope = page.locator(`[data-conversation-session="${ids[from]}"]`);
   const seat = turn === undefined ? scope : scope.locator(`[data-chat-node-key][data-chat-turn="${turn}"]`);
   const card = seat.getByRole('button', { name: `RETURN_${to}`, exact: true }).last();
   await card.scrollIntoViewIfNeeded();
   await card.focus();
+  const sourceKey = sourceMarker && await scope.getByText(sourceMarker, { exact: false }).evaluate(message => {
+    const row = message.closest('[data-chat-anchor-key]');
+    const scroll = row.closest('[data-conversation-scroll]');
+    // Put the durable message at the native reading line after focusing the card.
+    const top = scroll.scrollTop + row.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 12;
+    scroll.scrollTo({ top, behavior: 'instant' });
+    return row.dataset.chatAnchorKey;
+  });
   // Observe the departure during the actual activation, before the plugin's
   // bubbling click handler captures. Paging can still move between Playwright calls.
   await card.evaluate(button => {
@@ -138,6 +149,7 @@ async function openCard(page, from, to, turn) {
     await page.evaluate(() => { window.__readingReturnDepartureCleanup?.(); delete window.__readingReturnDepartureCleanup; delete window.__readingReturnDeparture; });
   }
   assert.equal(departure?.activation?.trusted, true, 'departure is measured at the real trusted card activation');
+  if (sourceKey) assert.equal(departure.activation.key, sourceKey, 'rewrite must target the actual bookmarked message');
   const captured = { ...departure.activation, preActivation: departure.preActivation,
     activationChange: { keyChanged: departure.preActivation.key !== departure.activation.key,
       topDelta: departure.activation.top - departure.preActivation.top } };
@@ -640,8 +652,10 @@ async function exerciseSidebar(page, fixture, record) {
   record('sidebarLifetimes', result);
 }
 async function exerciseMissingSource(page, fixture, record) {
-  const capture = await prepareOldReturn(page, 'R');
-  assert.equal(typeof capture.sourceSeq, 'number', 'captured row resolves through the public Conversation target');
+  await openFromSidebar(page, 'R');
+  const capture = await openCard(page, 'R', 'B', 78, 'RETURN_R_USER_78');
+  await waitNoRestoreReference(page, 'R');
+  assert.ok(Number.isSafeInteger(capture.sourceSeq), 'captured user row identifies a durable Session event');
   await fixture.control({ op: 'rewrite', id: ids.R, seq: capture.sourceSeq, marker: 'SOURCE_REPLACED' });
   await backButton(page, 'R').click();
   await page.locator('[data-session-tools-return][data-return-phase="error"]').waitFor();

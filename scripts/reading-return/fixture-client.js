@@ -31,7 +31,8 @@ window.__ModuleLoader__.load({
           nativeStatus(key) { const state = restores.get(key); return state && { pending: state.pending, result: state.result }; },
           sourceEvent(id, nodeKey) {
             const binding = ctx.sessions.binding(id);
-            return binding && ctx.uiConversation.binding(binding).target('chat').getSnapshot()?.nodes.get(nodeKey)?.anchorSeq;
+            const node = binding && ctx.uiConversation.binding(binding).target('chat').getSnapshot()?.nodes.get(nodeKey);
+            return node?.kind === 'user' ? node.data.seq : undefined;
           },
           setTranscript(mode) { return ctx.configForms.get('ui-chat').set('transcriptView', mode); },
           openSidebar(parent, child, key, duplicate = false) {
