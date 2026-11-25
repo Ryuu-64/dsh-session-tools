@@ -1,6 +1,6 @@
 // Temporary acceptance-profile control: real Session/Agent events, scripted model boundary only.
 import { LlmAdapter, createUserMessage, createAssistantMessage, createToolResultMessage, ToolCallId } from '@deepseek-ai/dsh-llm';
-import { SessionId, SessionSeq } from '@deepseek-ai/dsh-session';
+import { SessionId } from '@deepseek-ai/dsh-session';
 
 export const name = 'reading-return-fixture';
 export const inject = ['webServer', 'sessionController', 'llm', 'sessions', 'sessionPersistence', 'agents'];
@@ -11,6 +11,7 @@ export function apply(ctx) {
   let groupSession = null, groupTurn = 0, groupCalls = 0;
   let modelSession = null;
   let modelRegistered = false;
+  const sources = new Map();
   const waiting = new Set();
   const release = () => { for (const wake of waiting) wake(); waiting.clear(); };
   class Model extends LlmAdapter {
@@ -52,11 +53,6 @@ export function apply(ctx) {
     if (!/^session-[a-f0-9-]{36}$/.test(value)) throw new Error('unexpected synthetic session identity');
     return SessionId(value);
   };
-  async function session(id) {
-    const result = await ctx.sessionController.resolveAgent(ownedId(id));
-    if ('error' in result) throw new Error(JSON.stringify(result.error));
-    return result.agent.session;
-  }
   async function command(request) {
     if (request.op === 'release') {
       const current = active ?? script;
@@ -67,6 +63,19 @@ export function apply(ctx) {
     }
     if (request.op === 'status') return { active: active !== null || script !== null || (modelSession !== null && ctx.agents.get(modelSession)?.status === 'running'), waiting: waiting.size, emitted: active?.emitted ?? 0 };
     const id = ownedId(request.id);
+    if (request.op === 'own-source') {
+      if (ctx.sessions.get(id)) throw new Error('synthetic source must start detached from the host');
+      sources.set(id, await ctx.agents.resume({ resumeSessionId: id }));
+      return { owned: true };
+    }
+    if (request.op === 'release-source') {
+      const handle = sources.get(id);
+      if (!handle) throw new Error('fixture does not own this source');
+      await handle.dispose();
+      sources.delete(id);
+      if (ctx.sessions.get(id)) throw new Error('synthetic source is still attached to the host');
+      return { cold: true };
+    }
     if (request.op === 'stream' || request.op === 'append') {
       // Preserve the original credential-onboarding scenario before the new cases start.
       if (!modelRegistered) {
@@ -122,17 +131,6 @@ export function apply(ctx) {
         groupSession.append('tool/result', { turn: groupTurn, step: 1, meta: { sessionId: target, title: 'RETURN_B' }, message: createToolResultMessage({ callId, isError: false, content: [{ type: 'text', text: `LIVE_GROUP_RESULT_${groupCalls}` }] }) }, { surfaceOp: 'append', sourceEventSeqs: [call.seq] });
       }
       return { turn: groupTurn, calls: groupCalls };
-    }
-    const live = await session(id);
-    if (request.op === 'rewrite') {
-      const event = live.eventAt(SessionSeq(request.seq));
-      if (event?.type !== 'user/message' || event.surfaceOp === undefined) throw new Error('captured source event is not a replaceable user message');
-      const seq = SessionSeq(event.seq);
-      live.append('user/message', createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: `REWRITTEN_${request.marker}` }] }), {
-        surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq },
-        sourceEventSeqs: [seq],
-      });
-      return { replaced: event.seq };
     }
     throw new Error(`unknown fixture operation ${request.op}`);
   }

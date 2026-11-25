@@ -14,6 +14,7 @@ window.__ModuleLoader__.load({
             return { phase, size: ids.length, containsSession: ids.includes(id) };
           },
           openSession(id) { ctx.uiWorkspace.openSession(id); },
+          refreshCatalog() { return ctx.sessions.refresh(); },
           captureNative(id, key) {
             const root = document.querySelector(`[data-slot="main"] [data-conversation-session="${id}"]`);
             const bookmark = ctx.uiChatReading.capture(root.querySelector('[data-chat-reading-root]'));

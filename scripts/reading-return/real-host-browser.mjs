@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
-import { seedHistory, exercise, exerciseRequiredCases } from './browser-scenarios.mjs';
+import { seedHistory, stageReplacementHistory, exercise, exerciseRequiredCases } from './browser-scenarios.mjs';
 const createRedactor = secrets => value => { let text = String(value); for (const secret of secrets) text = text.split(secret).join('[redacted]'); return text.replace(/([?&]token=)[^\s&]+/g, '$1[redacted]'); };
 const npmCommand = args => ({ command: 'npm', args });
 const secrets = new Set();
@@ -165,6 +165,12 @@ for (const [name, bundle] of candidateBundles) {
 fs.writeFileSync(path.join(output, 'installed-host-artifacts.json'), JSON.stringify(installedHost, null, 2));
 assert.equal(hash(), artifactSha256);
 const seeded = await seedHistory(runtimeRequire, home, workspace);
+const sourceRoot = path.join(home, '.dsh/sessions');
+function sourceDirectory(root, id) {
+  const directory = fs.readdirSync(root, { recursive: true }).find(name => path.basename(name) === id && fs.statSync(path.join(root, name)).isDirectory());
+  assert.ok(directory, 'synthetic source must exist before swapping its snapshot');
+  return path.join(root, directory);
+}
 const patch = path.join(home, '.dsh/profiles/web/cordis.patch.yml');
 fs.writeFileSync(patch, JSON.stringify([
   { insert: [{ id: 'reading-return-fixture', name: pathToFileURL(path.join(fixture, 'index.mjs')).href }] },
@@ -260,12 +266,23 @@ try {
     },
     hideSource: id => {
       assert.ok(seeded.some(item => item.id === id), 'only this run\'s synthetic sessions may be removed');
-      const root = path.join(home, '.dsh/sessions');
-      const directory = fs.readdirSync(root, { recursive: true }).find(name => path.basename(name) === id && fs.statSync(path.join(root, name)).isDirectory());
-      assert.ok(directory, 'synthetic source must exist before removal');
-      const source = path.join(root, directory), backup = path.join(run, `removed-${id}`);
+      const source = sourceDirectory(sourceRoot, id), backup = path.join(run, `removed-${id}`);
       fs.renameSync(source, backup);
       return () => fs.renameSync(backup, source);
+    },
+    replaceSource: async (id, seq, marker) => {
+      assert.ok(seeded.some(item => item.id === id), 'only this run\'s synthetic sessions may be replaced');
+      const staging = fs.mkdtempSync(path.join(run, 'replacement-'));
+      await stageReplacementHistory(runtimeRequire, sourceRoot, staging, id, seq, marker);
+      const source = sourceDirectory(sourceRoot, id), replacement = sourceDirectory(staging, id);
+      const backup = path.join(staging, 'original');
+      fs.renameSync(source, backup);
+      try { fs.renameSync(replacement, source); }
+      catch (error) { fs.renameSync(backup, source); throw error; }
+      return () => {
+        fs.renameSync(source, replacement);
+        fs.renameSync(backup, source);
+      };
     },
   });
   await Promise.all(responses);

@@ -19,6 +19,7 @@ const ids = {
   V: 'session-55555555-5555-5555-5555-555555555555',
   P: 'session-66666666-6666-6666-6666-666666666666',
   Q: 'session-77777777-7777-7777-7777-777777777777',
+  X: 'session-88888888-8888-8888-8888-888888888888',
 };
 export async function seedHistory(require, home, workspace) {
   const load = name => import(pathToFileURL(require.resolve(name)).href);
@@ -52,7 +53,7 @@ export async function seedHistory(require, home, workspace) {
       const handle = await ctx.sessionPersistence.create({ version: SESSION_FORMAT_VERSION, id, createdAt: Date.now() - 60000, isSeeded: false, cwd: workspace, delegationDepth: 0 });
       await handle.append(events); await handle.close(); result.push({ id, turns: 80, events: events.length });
     }
-    for (const label of ['T', 'H', 'G', 'S', 'D', 'R', 'U', 'V', 'P', 'Q']) {
+    for (const label of ['T', 'H', 'G', 'S', 'D', 'R', 'U', 'V', 'P', 'Q', 'X']) {
       const id = SessionId(ids[label]), session = Session.create(id);
       const child = ['S', 'V'].includes(label);
       for (let turn = 1; turn <= 80; turn++) {
@@ -82,6 +83,33 @@ export async function seedHistory(require, home, workspace) {
     }
   } finally { await ctx.fiber.dispose(); }
   return result;
+}
+
+export async function stageReplacementHistory(require, sourceRoot, replacementRoot, id, seq, marker) {
+  const load = name => import(pathToFileURL(require.resolve(name)).href);
+  const { SessionId } = await load('@deepseek-ai/dsh-session');
+  const { createUserMessage } = await load('@deepseek-ai/dsh-llm');
+  const { Context } = await load('@deepseek-ai/cordis');
+  const { default: Jsonl } = await load('@deepseek-ai/dsh-session-persistence-jsonl');
+  const original = new Context(), replacement = new Context();
+  try {
+    await original.plugin(Jsonl, { root: sourceRoot });
+    await replacement.plugin(Jsonl, { root: replacementRoot });
+    const source = await original.sessionPersistence.open(SessionId(id), 'read');
+    try {
+      const { events } = await source.read();
+      const event = events[seq];
+      assert.equal(event?.seq, seq);
+      assert.equal(event?.type, 'user/message');
+      assert.equal(event.surfaceOp, 'append');
+      const updated = [...events];
+      // A model-surface rewrite preserves the original human transcript.
+      updated[seq] = { ...event, data: createUserMessage({ source: event.data.source, content: [{ type: 'text', text: marker }] }) };
+      const target = await replacement.sessionPersistence.create(source.header, { inheritedEventCount: source.inheritedEventCount });
+      try { await target.append(updated); await target.flush(); }
+      finally { await target.close(); }
+    } finally { await source.close(); }
+  } finally { await Promise.all([original.fiber.dispose(), replacement.fiber.dispose()]); }
 }
 
 async function openFromSidebar(page, label) {
@@ -652,17 +680,34 @@ async function exerciseSidebar(page, fixture, record) {
   record('sidebarLifetimes', result);
 }
 async function exerciseMissingSource(page, fixture, record) {
-  await openFromSidebar(page, 'R');
-  const capture = await openCard(page, 'R', 'B', 78, 'RETURN_R_USER_78');
-  await waitNoRestoreReference(page, 'R');
+  await fixture.control({ op: 'own-source', id: ids.X });
+  await openFromSidebar(page, 'X');
+  const capture = await openCard(page, 'X', 'B', 78, 'RETURN_X_USER_78');
+  await waitNoRestoreReference(page, 'X');
   assert.ok(Number.isSafeInteger(capture.sourceSeq), 'captured user row identifies a durable Session event');
-  await fixture.control({ op: 'rewrite', id: ids.R, seq: capture.sourceSeq, marker: 'SOURCE_REPLACED' });
-  await backButton(page, 'R').click();
-  await page.locator('[data-session-tools-return][data-return-phase="error"]').waitFor();
-  assert.equal(await mainRoot(page, 'B').count(), 1, 'replaced content is rejected before navigation');
-  await waitNoRestoreReference(page, 'R');
+  await fixture.control({ op: 'release-source', id: ids.X });
+  const replacementMarker = 'REPLACEMENT_TRANSCRIPT_MESSAGE';
+  const restoreOriginal = await fixture.replaceSource(ids.X, capture.sourceSeq, replacementMarker);
+  try {
+    await page.evaluate(() => window.__readingReturnFixture.refreshCatalog());
+    assert.equal(await page.evaluate(id => window.__readingReturnFixture.catalog(id).containsSession, ids.X), true,
+      'rewritten source is still available in the catalog');
+    await backButton(page, 'X').click();
+    const error = page.locator('[data-session-tools-return][data-return-phase="error"]');
+    await error.getByText('来源内容已删除或未能加载，无法精确返回。', { exact: true }).waitFor();
+    assert.equal(await mainRoot(page, 'B').count(), 1, 'replaced content is rejected before navigation');
+    await waitNoRestoreReference(page, 'X');
+    await openFromSidebar(page, 'X');
+    await mainRoot(page, 'X').getByText(replacementMarker, { exact: true }).waitFor();
+    assert.equal(await mainRoot(page, 'X').getByText('RETURN_X_USER_78', { exact: false }).count(), 0);
+  } finally { restoreOriginal(); }
 
+  await fixture.control({ op: 'own-source', id: ids.D });
   await prepareOldReturn(page, 'D');
+  await fixture.control({ op: 'release-source', id: ids.D });
+  await page.evaluate(() => window.__readingReturnFixture.refreshCatalog());
+  assert.equal(await page.evaluate(id => window.__readingReturnFixture.catalog(id).containsSession, ids.D), true,
+    'deleted-source scenario starts with a catalogued source');
   const restoreFile = fixture.hideSource(ids.D);
   try {
     await backButton(page, 'D').click();
