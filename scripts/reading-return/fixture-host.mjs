@@ -104,7 +104,9 @@ export function apply(ctx) {
       const handle = await ctx.sessionPersistence.open(id, 'read');
       try {
         const { events } = await handle.read();
-        groupSession = ctx.sessions.create(id, { seed: events, meta: { cwd: handle.header.cwd, parentSession: handle.header.parentSession, origin: 'subagent', delegationDepth: 1 } });
+        // The query service reconciles the attached and durable copies by
+        // session identity, including the original creation time and lineage.
+        groupSession = ctx.sessions.create(id, { seed: events, meta: handle.header, inheritedEventCount: handle.inheritedEventCount });
         groupTurn = 1 + Math.max(0, ...events.filter(event => event.type === 'turn/start').map(event => event.data.turn));
         groupSession.append('turn/start', { turn: groupTurn }); groupSession.append('step/start', { turn: groupTurn, step: 1 });
         groupSession.append('user/message', createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: 'LIVE_NESTED_GROUP' }] }), { surfaceOp: 'append' });
