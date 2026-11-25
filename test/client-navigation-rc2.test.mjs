@@ -62,3 +62,22 @@ test('failed history remains a failed selected Session, without cancelling work'
   await h.mountWorkspace();
   assert.ok(h.entry(), 'service reload registers exactly one working card');
 });
+
+test('ordinary cards keep working while the optional reading services are unavailable', async t => {
+  const { JSDOM } = await import('jsdom');
+  const dom = new JSDOM('<body></body>', { pretendToBeVisual: true });
+  t.after(() => dom.window.close());
+  const h = await clientRc2(t, { ids: [b], browser: dom.window });
+  await h.mountWorkspace();
+  const ordinaryCard = h.entry();
+  assert.ok(ordinaryCard, 'ordinary navigation only needs uiWorkspace');
+  // Conversation assembly is not exercised by this empty-document contract.
+  // The separate real-Web lane owns native Chat capture and restoration.
+  await h.ctx.plugin({ name: 'conversation-provider', apply: scope => { scope.provide('uiConversation', {}); } }).await();
+  await tick();
+  assert.equal(h.entry(), ordinaryCard, 'partial reading capability keeps the existing card');
+  h.click(b); await tick();
+  assert.equal(h.ctx.sessions.retainInfo(b).getSnapshot().retainedBy.mainView, 1);
+  assert.equal(h.ctx.sessions.retainInfo(b).getSnapshot().referenceCount, 1, 'temporary preparation reference was released');
+  assert.deepEqual(h.cancelled, []);
+});
