@@ -5,6 +5,37 @@ const a = 'session-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const b = 'session-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+test('message cards show the reply above details and retain saved receipts', async t => {
+  const h = await clientRc2(t, { ids: [a] });
+  const row = h.ctx.slots.entriesOfSlot('tool.call.toolview').find(entry => entry.options.key === 'session_send');
+  const reply = '这是文字结果。';
+  const receipt = `Receipt: sessionId=${a}, messageId=receipt-a, delivery=queue`;
+  const status = '已发送消息';
+  const render = (messageStatus, texts) => row.component({ block: {
+    kind: 'tool-result', isError: false,
+    meta: { sessionId: a, messageId: 'receipt-a', messageStatus },
+    content: texts.map(text => ({ type: 'text', text })),
+  } }).props.children;
+  const currentReceipt = `${receipt}, messageStatus=turnCompleted`;
+  const current = render('turnCompleted', [`${status}\n${currentReceipt}`, reply]);
+  assert.equal(current.find(child => child?.type === 'strong').props.children, status);
+  assert.equal(current.find(child => child?.type === 'div').props.children, reply);
+  const [summary, body] = current.find(child => child?.type === 'details').props.children;
+  assert.equal(summary.props.children, '消息详情');
+  assert.equal(body.props.children, currentReceipt);
+  const pending = render('queued', [`已排队\n${receipt}, messageStatus=queued`]);
+  assert.equal(pending.find(child => child?.type === 'strong').props.children, '已排队');
+  assert.equal(pending.some(child => child?.type === 'div'), false);
+
+  for (const savedStatus of ['对方已处理这条消息', '目标本轮结束（不等于任务成功）']) {
+    const children = render('turnCompleted', [`${savedStatus}\n${receipt}\n${reply}`]);
+    assert.equal(children.find(child => child?.type === 'strong').props.children, status);
+    const [summary, body] = children.find(child => child?.type === 'details').props.children;
+    assert.equal(summary.props.children, '消息详情');
+    assert.equal(body.props.children, `${receipt}\n${reply}`);
+  }
+});
+
 test('published client bundles own delayed navigation, repeat selection, replacement and unload', async t => {
   const pending = Promise.withResolvers();
   const h = await clientRc2(t, { ids: [a, b], delayed: new Map([[a, pending]]) });

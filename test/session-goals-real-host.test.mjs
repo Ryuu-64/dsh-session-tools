@@ -117,6 +117,59 @@ test('both goal creation entry points use the configured native round limit', { 
   assert.equal(approvals.filter(reason => reason.includes("using the host's configured round limit")).length, 2);
 });
 
+test('a completed delegated goal needs no pause and can be replaced without clearing it', { timeout: 15000 }, async t => {
+  const approvals = [];
+  let approval = 'allowed-once';
+  const h = await receiptHost(t, {
+    withGoals: true, goalConfig: { defaultMaxGoalRounds: 2 },
+    onApproval: ({ reason }) => { approvals.push(reason); return approval; },
+  });
+  const caller = await h.holdCaller();
+  const sessionId = 'child';
+  const { agent: child } = await h.ctx.agents.create({
+    sessionId, meta: { cwd: h.root, parentSession: caller.exec.agent.id },
+    agentOptions: { provider: 'fixture', model: 'scripted' },
+  });
+  const blocked = Promise.withResolvers();
+  h.ctx.on('goal/changed', ({ agent, change }) => {
+    if (agent === child && change.goal?.phase === 'blocked') blocked.resolve(change.goal);
+  });
+  h.model.text('initial goal round');
+  await goalCall(h, caller, { sessionId, action: 'set', objective: 'Initial goal', rounds: 1 });
+  const { id, revision } = await blocked.promise;
+  const completed = h.ctx.goals.complete(child, { id, revision });
+  assert.equal(completed.roundsStarted, 1);
+
+  const pause = await h.ctx.agents.withInitiator(caller.exec.agent, () => executeTool(h.ctx, {
+    ...caller.exec, name: 'session_goal', arguments: { sessionId, action: 'pause' },
+  }));
+  assert.equal(pause.isError, true);
+  assert.match(JSON.stringify(pause.content), /This goal is already complete\. There is no need to pause it\./);
+  await assert.rejects(goalCall(h, caller, { sessionId, action: 'set', rounds: 2 }), /needs an objective/);
+  assert.equal(approvals.length, 1);
+
+  const set = { sessionId, action: 'set', objective: 'Next goal' };
+  approval = 'rejected';
+  await assert.rejects(goalCall(h, caller, set), /the person declined/);
+  assert.deepEqual(h.ctx.goals.get(child), completed);
+
+  approval = 'allowed-once';
+  h.model.text('new goal round one');
+  h.model.text('new goal round two');
+  const replacement = await goalCall(h, caller, set);
+  assert.equal(replacement.managed, true);
+  assert.notEqual(replacement.goal.id, id);
+  assert.equal(replacement.goal.objective, set.objective);
+  assert.equal(replacement.goal.phase, 'active');
+  assert.equal(replacement.goal.roundsStarted, 0);
+  assert.equal(replacement.goal.maxGoalRounds, 2);
+  assert.match(approvals.at(-1), /replace the completed goal.*using the host's configured round limit/);
+  const changes = child.session.snapshotEvents().filter(event => event.type === 'goal/change');
+  assert.ok(changes.some(event => event.data.operation === 'complete' && event.data.goal.id === id));
+  assert.ok(changes.some(event => event.data.operation === 'create' && event.data.goal.id === replacement.goal.id));
+  assert.ok(changes.every(event => event.data.operation !== 'clear'));
+});
+
 test('goal mutations require the calling human turn and preserve a goal created outside this plugin', { timeout: 15000 }, async t => {
   const h = await receiptHost(t, { withGoals: true });
   const parent = await h.create('parent');
@@ -145,6 +198,9 @@ test('goal mutations require the calling human turn and preserve a goal created 
   const current = await goalCall(h, caller, { action: 'get', sessionId: target.id });
   assert.equal(current.managed, false);
   assert.equal(current.goal.id, childGoal.id);
+  const complete = h.ctx.goals.complete(target, { id: current.goal.id, revision: current.goal.revision });
+  await assert.rejects(goalCall(h, caller, { action: 'set', sessionId: target.id, objective: 'Replace' }), /did not grant/);
+  assert.deepEqual(h.ctx.goals.get(target), complete);
 });
 
 test('a grant survives restart and can be paused, resumed and revoked by the parent', { timeout: 15000 }, async t => {

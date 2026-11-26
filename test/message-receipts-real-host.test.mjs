@@ -161,18 +161,30 @@ test('session_send defaults to steering and explicit queue starts a separate tur
   assert.equal(idle.output, 'idle steering answer');
 });
 
-test('real ToolRuntime persists send receipt identity in JSONL presentation metadata', { timeout: 15000 }, async t => {
+test('real ToolRuntime persists send receipt identity and delivery mode in JSONL', { timeout: 15000 }, async t => {
   const h = await receiptHost(t); const target = await h.create('target');
-  h.model.tool('session_send', { sessionId: 'target', message: 'A', wait: true }); h.model.text('answer A'); h.model.text('caller done');
-  const caller = await h.create('caller'); caller.agent.followup(user('exercise send'));
-  await caller.agent.whenIdle(); await target.agent.whenIdle(); await h.ctx.sessionPersistence.flush();
-  const stored = await h.read('caller'); const result = stored.events.find(e => e.type === 'tool/result');
-  assert.notEqual(toolResult(result).isError, true);
-  assert.equal(result.data.meta.sessionId, 'target'); assert.ok(result.data.meta.messageId);
-  assert.equal(result.data.meta.delivery, 'steer');
-  assert.match(JSON.stringify(result.data.message.content), /delivery=steer/);
-  assert.match(JSON.stringify(result.data.message.content), new RegExp(result.data.meta.messageId));
-  assert.equal((await wait(h, result.data.meta)).output, 'answer A');
+  const caller = await h.create('caller');
+  const modes = ['steer', 'queue'];
+  for (const delivery of modes) {
+    h.model.tool('session_send', { sessionId: 'target', message: 'A', wait: true, delivery });
+    h.model.text(`answer ${delivery}`); h.model.text('caller done');
+    caller.agent.followup(user(`exercise ${delivery} send`));
+    await caller.agent.whenIdle(); await target.agent.whenIdle();
+  }
+  await h.ctx.sessionPersistence.flush();
+  const stored = await h.read('caller');
+  const results = stored.events.filter(e => e.type === 'tool/result');
+  assert.deepEqual(results.map(result => result.data.meta?.delivery), modes);
+  for (const result of results) {
+    assert.notEqual(toolResult(result).isError, true);
+    const { sessionId, messageId, delivery } = result.data.meta;
+    assert.equal(sessionId, 'target'); assert.ok(messageId);
+    const [receiptBlock, replyBlock] = result.data.message.content;
+    assert.match(receiptBlock.text, /^已发送消息\n/);
+    assert.match(receiptBlock.text, new RegExp(`messageId=${messageId}, delivery=${delivery}, messageStatus=turnCompleted`));
+    assert.deepEqual(replyBlock, { type: 'text', text: `answer ${delivery}` });
+    assert.equal((await wait(h, result.data.meta)).output, `answer ${delivery}`);
+  }
 });
 
 test('a persisted crash-open turn stays unfinished on cold read and becomes interrupted only after official resume repair', { timeout: 15000 }, async t => {
