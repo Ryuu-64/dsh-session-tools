@@ -64,6 +64,8 @@ for (const name of ['session_create', 'session_send']) {
           assert.equal(h.calls.request[0].signal, h.controller.signal);
           assert.equal(h.calls.request[0].toolName, name);
           assert.equal(h.calls.request[0].callId, 'call-1');
+          assert.equal(h.calls.request[0].displayReason.en, h.calls.request[0].reason);
+          assert.match(h.calls.request[0].displayReason.zh, /会话.*hello/);
         }
       });
     }

@@ -92,7 +92,13 @@ export async function clientRc2(t, { ids, delayed = new Map(), rejected = new Se
   t.after(() => layout.dispose());
   ctx.provide('layout', layout);
   ctx.provide('workspaces', { list: store.createSnapshotStore({ items: [], archivedSessionIds: [], pinnedSessionIds: [], phase: 'ready', state: 'idle', error: null }) });
-  ctx.provide('locale', { register: () => () => {}, bind: () => key => key });
+  const dictionaries = new Map();
+  let language = 'zh';
+  ctx.provide('locale', {
+    register(namespace, copy) { dictionaries.set(namespace, copy); return () => dictionaries.delete(namespace); },
+    bind: namespace => (key, params = {}) => (dictionaries.get(namespace)?.[language]?.[key] ?? key)
+      .replace(/\{(\w+)\}/g, (match, name) => Object.hasOwn(params, name) ? String(params[name]) : match),
+  });
   ctx.provide('shortcuts', { catalog: store.createSnapshotStore([]), register: () => () => {} });
   ctx.provide('contextMenus', { active: store.createSnapshotStore(null), register: () => () => {} });
   ctx.provide('remoteAccess', { source: () => store.createSnapshotStore(false) });
@@ -105,5 +111,6 @@ export async function clientRc2(t, { ids, delayed = new Map(), rejected = new Se
     const tree = row.component({ block: { kind: 'tool-result', isError: false, meta: { sessionId: id }, content: [] }, slot: { injected: row.inject() } });
     React.Children.toArray(tree.props.children).find(child => child?.type === 'button').props.onClick();
   };
-  return { ctx, plugin, controller, mountWorkspace, entry, click, opened, closed, cancelled, layout, panel };
+  return { ctx, plugin, controller, mountWorkspace, entry, click, opened, closed, cancelled, layout, panel,
+    setLanguage(next) { language = next; } };
 }

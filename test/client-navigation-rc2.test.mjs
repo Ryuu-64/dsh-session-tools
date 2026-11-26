@@ -34,6 +34,26 @@ test('message cards show the reply above details and retain saved receipts', asy
     assert.equal(summary.props.children, '消息详情');
     assert.equal(body.props.children, `${receipt}\n${reply}`);
   }
+  h.setLanguage('en');
+  const english = render('turnCompleted', [`${status}\n${currentReceipt}`, reply]);
+  assert.equal(english.find(child => child?.type === 'strong').props.children, 'Message sent');
+  const [englishSummary, englishBody] = english.find(child => child?.type === 'details').props.children;
+  assert.equal(englishSummary.props.children, 'Message details');
+  assert.equal(englishBody.props.children, currentReceipt);
+});
+
+test('the communication status card translates durable switch status without changing the raw output', async t => {
+  const h = await clientRc2(t, { ids: [a] });
+  const row = h.ctx.slots.entriesOfSlot('tool.call.toolview').find(entry => entry.options.key === 'session_communication_status');
+  const block = {
+    kind: 'tool-result', isError: false,
+    meta: { communicationReason: 'target_receive_disabled' },
+    content: [{ type: 'text', text: 'Saved tool output' }],
+  };
+  assert.equal(row.component({ block }).props.children[0].props.children, '目标会话已关闭接收');
+  h.setLanguage('en');
+  assert.equal(row.component({ block }).props.children[0].props.children, 'Receiving is off for the target session');
+  assert.equal(row.component({ block: { ...block, meta: undefined } }).props.children, 'Saved tool output');
 });
 
 test('published client bundles own delayed navigation, repeat selection, replacement and unload', async t => {
