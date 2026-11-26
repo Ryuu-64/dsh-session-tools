@@ -74,7 +74,7 @@ test('goals without a driver reject new grants while session creation and messag
   const followup = await h.ctx.tools.get('session_send').execute({
     sessionId: child.id, message: 'Follow up', wait: true,
   }, { ...caller.exec, name: 'session_send' });
-  assert.equal(followup.delivery, 'queue');
+  assert.equal(followup.delivery, 'steer');
   assert.equal(followup.output, 'ordinary followup answer');
 });
 

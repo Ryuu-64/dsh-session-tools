@@ -17,7 +17,10 @@ test('real public claims agree with durable A/B receipts, checkpoint and fresh-h
   h.ctx.on('agent/inbox/claimed', p => notifications.push({ type: 'claimed', id: p.message.id, turn: p.turn }));
   h.ctx.on('agent/inbox/discarded', p => notifications.push({ type: 'discarded', id: p.message.id }));
   h.model.text('answer A'); h.model.text('answer B');
-  const [a, b] = await Promise.all([send(h, caller.exec), send(h, caller.exec, { message: 'B' })]);
+  const [a, b] = await Promise.all([
+    send(h, caller.exec, { delivery: 'queue' }),
+    send(h, caller.exec, { delivery: 'queue', message: 'B' }),
+  ]);
   assert.equal(a.output, 'answer A'); assert.equal(b.output, 'answer B');
   assert.equal(a.messageStatus, 'turnCompleted'); assert.equal(b.messageStatus, 'turnCompleted');
   assert.notEqual(a.turn, b.turn); assert.notEqual(a.messageId, b.messageId);
@@ -51,7 +54,7 @@ test('real queued message cancellation is discarded after restart, never previou
   const entered = Promise.withResolvers(), hold = gate(); t.after(hold.release);
   h.model.scripts.push(async function* (options) { entered.resolve(); await hold.wait(options.signal); yield* textChunks('previous answer'); });
   target.agent.followup(user('hold previous turn')); await entered.promise;
-  const receipt = await send(h, caller.exec, { wait: false });
+  const receipt = await send(h, caller.exec, { delivery: 'queue', wait: false });
   const discarded = []; h.ctx.on('agent/inbox/discarded', p => discarded.push(p.message.id));
   target.agent.cancel({ kind: 'user' }); await target.agent.whenIdle();
   const result = await wait(h, receipt); assert.equal(result.messageStatus, 'discarded'); assert.equal(result.output, undefined); assert.equal(result.completed, false);
@@ -104,7 +107,7 @@ test('real timeout and caller cancellation retain the same receipt and never red
 test('real next-step input and followup can share a turn without stealing another turn result', { timeout: 15000 }, async t => {
   const h = await receiptHost(t); const caller = await h.holdCaller(); const target = await h.create('target');
   const extra = user('injected context'); target.agent.inbox.append('next-step', extra);
-  h.model.text('shared response'); const receipt = await send(h, caller.exec);
+  h.model.text('shared response'); const receipt = await send(h, caller.exec, { delivery: 'queue' });
   const extraResult = await wait(h, { sessionId: 'target', messageId: extra.id });
   assert.equal(extraResult.turn, receipt.turn); assert.equal(extraResult.output, 'shared response');
   assert.equal(receipt.output, 'shared response');
@@ -112,7 +115,7 @@ test('real next-step input and followup can share a turn without stealing anothe
   assert.equal(projected.messages[extra.id].admitted, true);
 });
 
-test('session_send steers the active turn and wakes an idle target', { timeout: 15000 }, async t => {
+test('session_send defaults to steering and explicit queue starts a separate turn', { timeout: 15000 }, async t => {
   const reasons = [];
   const h = await receiptHost(t, { onApproval: ({ reason }) => { reasons.push(reason); return 'allowed-once'; } });
   const caller = await h.holdCaller();
@@ -123,10 +126,15 @@ test('session_send steers the active turn and wakes an idle target', { timeout: 
     async function* (options) { entered.resolve(); await hold.wait(options.signal); yield* textChunks('initial work'); },
     async function* (options) { nextEntered.resolve(); await next.wait(options.signal); yield* textChunks('adjusted work'); },
   );
+  h.model.text('queued work');
   target.agent.followup(user('start work'));
   await entered.promise;
   const start = target.agent.session.snapshotEvents().find(e => e.type === 'turn/start');
-  const receipt = await send(h, caller.exec, { delivery: 'steer', wait: false });
+  const queued = await send(h, caller.exec, { delivery: 'queue', message: 'Work next turn', wait: false });
+  assert.equal(queued.delivery, 'queue');
+  assert.equal(target.agent.inbox.nextTurn[0].id, queued.messageId);
+
+  const receipt = await send(h, caller.exec, { wait: false });
   assert.equal(receipt.delivery, 'steer');
   assert.equal(receipt.messageStatus, 'queued');
   assert.equal(target.agent.inbox.nextStep[0].id, receipt.messageId);
@@ -141,6 +149,10 @@ test('session_send steers the active turn and wakes an idle target', { timeout: 
   next.release();
   assert.match((await wait(h, receipt)).output, /adjusted work/);
   await target.agent.whenIdle();
+  const queuedResult = await wait(h, queued);
+  assert.equal(queuedResult.output, 'queued work');
+  assert.notEqual(queuedResult.turn, delivered.turn);
+
   h.model.text('idle steering answer');
   const idle = await send(h, caller.exec, { delivery: 'steer' });
   assert.equal(idle.delivery, 'steer');
@@ -151,7 +163,7 @@ test('session_send steers the active turn and wakes an idle target', { timeout: 
 
 test('real ToolRuntime persists send receipt identity in JSONL presentation metadata', { timeout: 15000 }, async t => {
   const h = await receiptHost(t); const target = await h.create('target');
-  h.model.tool('session_send', { sessionId: 'target', message: 'A', delivery: 'steer', wait: true }); h.model.text('answer A'); h.model.text('caller done');
+  h.model.tool('session_send', { sessionId: 'target', message: 'A', wait: true }); h.model.text('answer A'); h.model.text('caller done');
   const caller = await h.create('caller'); caller.agent.followup(user('exercise send'));
   await caller.agent.whenIdle(); await target.agent.whenIdle(); await h.ctx.sessionPersistence.flush();
   const stored = await h.read('caller'); const result = stored.events.find(e => e.type === 'tool/result');
@@ -281,7 +293,7 @@ test('real queued JSONL receipt stays pending until the resumed owner explicitly
   const entered = Promise.withResolvers(), hold = gate(); t.after(hold.release);
   h.model.scripts.push(async function* (options) { entered.resolve(); await hold.wait(options.signal); yield* textChunks('old active result'); });
   target.agent.followup(user('old active turn')); await entered.promise;
-  const receipt = await send(h, caller.exec, { wait: false }); assert.equal(receipt.messageStatus, 'queued');
+  const receipt = await send(h, caller.exec, { delivery: 'queue', wait: false }); assert.equal(receipt.messageStatus, 'queued');
   const writer = await h.ctx.sessionPersistence.create({ ...target.agent.session.header, id: 'queued-crash-target' });
   await writer.append(target.agent.session.snapshotEvents()); await writer.flush(); await writer.close();
   const saved = { sessionId: 'queued-crash-target', messageId: receipt.messageId };
@@ -302,8 +314,8 @@ test('receipt A completes while a later B turn is still running', { timeout: 150
   const enteredB = Promise.withResolvers(), holdB = gate(); t.after(holdB.release);
   h.model.text('A settled');
   h.model.scripts.push(async function* (options) { enteredB.resolve(); await holdB.wait(options.signal); yield* textChunks('B settled'); });
-  const a = send(h, caller.exec);
-  const b = send(h, caller.exec, { message: 'B', wait: false });
+  const a = send(h, caller.exec, { delivery: 'queue' });
+  const b = send(h, caller.exec, { delivery: 'queue', message: 'B', wait: false });
   await enteredB.promise;
   const resultA = await a;
   assert.equal(resultA.output, 'A settled'); assert.equal(resultA.completed, true);

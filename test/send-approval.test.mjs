@@ -10,7 +10,7 @@ function fixture({ outcome = 'allowed-once', policy = 'ask', mode = 'workspace-w
   let live;
   const controller = new AbortController();
   const caller = { id: 'caller', session: { header: { id: 'caller', cwd: '/workspace' } } };
-  const target = { id: 'target', session: record, followup(message) { timeline.push('followup'); calls.messages.push(message); } };
+  const target = { id: 'target', session: record, steer(message) { timeline.push('steer'); calls.messages.push(message); } };
   const services = {
     sandboxPolicy: { resolve: () => ({ mode }) },
     approval: {
@@ -88,14 +88,14 @@ test('closed target: workspace-write + never requests and is rejected without re
 test('closed target: allowed request rechecks before resume and sends once', async () => {
   const h = fixture();
   await h.run();
-  assert.deepEqual(h.timeline, ['read', 'approval', 'read', 'resume', 'followup']);
+  assert.deepEqual(h.timeline, ['read', 'approval', 'read', 'resume', 'steer']);
   assert.equal(h.calls.resume, 1);
   assert.equal(h.calls.messages.length, 1);
 });
 test('closed target: explicit full access bypasses prompt and sends once', async () => {
   const h = fixture({ policy: 'never', mode: 'danger-full-access' });
   await h.run();
-  assert.deepEqual(h.timeline, ['read', 'read', 'resume', 'followup']);
+  assert.deepEqual(h.timeline, ['read', 'read', 'resume', 'steer']);
 });
 test('closed target: already cancelled never queries, resumes or sends', async () => {
   const h = fixture(); h.controller.abort();

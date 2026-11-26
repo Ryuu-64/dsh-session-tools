@@ -8,12 +8,13 @@ import { withCommunicationHost } from './helpers/communication-host.mjs';
 
 function fixture({ cold = false, query: suppliedQuery, persistence } = {}) {
   const tools = {};
-  const delivered = [];
+  const inbox = { nextTurn: [], nextStep: [] };
   let disposed = 0;
   const target = {
-    id: 'target', status: 'idle', inbox: { nextTurn: delivered },
+    id: 'target', status: 'idle', inbox,
     session: { header: { id: 'target', cwd: '/fixture' }, snapshotEvents: () => [] },
-    followup(message) { delivered.push(message); this.status = 'running'; },
+    followup(message) { inbox.nextTurn.push(message); this.status = 'running'; },
+    steer(message) { inbox.nextStep.push(message); this.status = 'running'; },
     whenIdle() { return this.status === 'idle' ? Promise.resolve() : new Promise(() => {}); },
     cancel() { throw new Error('must not cancel target'); },
   };
@@ -27,7 +28,7 @@ function fixture({ cold = false, query: suppliedQuery, persistence } = {}) {
   }));
   const controller = new AbortController();
   const exec = { name: 'fixture', callId: 'call', signal: controller.signal, agent: { id: 'caller', session: { header: { id: 'caller', cwd: '/fixture' } } } };
-  return { tools, target, delivered, controller, exec, disposed: () => disposed };
+  return { tools, target, get delivered() { return [...inbox.nextTurn, ...inbox.nextStep]; }, controller, exec, disposed: () => disposed };
 }
 
 test('idle wait releases its timer immediately', async () => {

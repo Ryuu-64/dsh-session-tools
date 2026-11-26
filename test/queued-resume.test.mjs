@@ -11,7 +11,7 @@ function queuedHost({ firstFails = false } = {}) {
   const messages = [], approvals = [];
   const header = { id: 'target', cwd: '/workspace' };
   let live, resumes = 0, send;
-  const target = { id: 'target', session: { header }, followup: message => messages.push(message.content[0].text) };
+  const target = { id: 'target', session: { header }, steer: message => messages.push(message.content[0].text) };
   const services = {
     sessionQuery: { listSessions: async () => [{ header }] },
     sandboxPolicy: { resolve: () => ({ mode: 'workspace-write' }) },

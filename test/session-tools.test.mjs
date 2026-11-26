@@ -160,7 +160,7 @@ test("session_send wait:true waits for the queued message, not the previous answ
   const tools = build({ agentFor: (id) => (id === "target" ? agent : undefined), query: queryFor(eventsFor([ANSWER_NEW])) });
 
   const result = await tools.session_send.execute(
-    { sessionId: "target", message: "干活", wait: true, timeoutMs: 5000 },
+    { sessionId: "target", message: "干活", delivery: "queue", wait: true, timeoutMs: 5000 },
     execFor("session_send"),
   );
 
@@ -184,7 +184,7 @@ test("session_send wait:true reports a timeout instead of a stale answer", { tim
   t.after(() => controller.abort());
 
   const result = await tools.session_send.execute(
-    { sessionId: "target", message: "干活", wait: true, timeoutMs: 300 },
+    { sessionId: "target", message: "干活", delivery: "queue", wait: true, timeoutMs: 300 },
     { ...execFor("session_send"), signal: controller.signal },
   );
 
@@ -213,7 +213,7 @@ test("session_send consumes exactly its observation budget on a controlled clock
   const controller = new AbortController();
   t.after(() => controller.abort());
   const pending = tools.session_send.execute(
-    { sessionId: "target", message: "干活", wait: true, timeoutMs: 300 },
+    { sessionId: "target", message: "干活", delivery: "queue", wait: true, timeoutMs: 300 },
     { ...execFor("session_send"), signal: controller.signal },
   );
   let settled = false;
@@ -314,7 +314,7 @@ test("session_send queues a message whose id the wait can match", async () => {
   });
 
   const result = await tools.session_send.execute(
-    { sessionId: "target", message: "干活", wait: true, timeoutMs: 200 },
+    { sessionId: "target", message: "干活", delivery: "queue", wait: true, timeoutMs: 200 },
     execFor("session_send"),
   );
 

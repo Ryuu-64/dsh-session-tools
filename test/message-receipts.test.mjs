@@ -170,7 +170,7 @@ test('non-waiting send reports a synchronous discard with the exact delivery rec
     tools: { register: d => { tools[d.name] = d; } }, agents: { get: () => target },
     get: name => ({ sandboxPolicy: { resolve: () => ({ mode: 'danger-full-access' }) }, approval: { overrideOf: () => 'never', request() {} } })[name],
   }));
-  const result = await tools.session_send.execute({ sessionId: 'target', message: 'A' }, { agent: { id: 'caller', session: { header: { id: 'caller' } } } });
+  const result = await tools.session_send.execute({ sessionId: 'target', message: 'A', delivery: 'queue' }, { agent: { id: 'caller', session: { header: { id: 'caller' } } } });
   assert.equal(result.messageId, delivered.id);
   assert.equal(result.messageStatus, 'discarded'); assert.equal(result.completed, false); assert.equal(result.output, undefined);
 });

@@ -13,7 +13,7 @@ test('real Cordis traced agent proxies share one cold-resume lock across caller 
   const owners = [];
   const messages = [];
   const header = { id: 'target', cwd: '/workspace' };
-  const target = { id: 'target', session: { header }, followup: m => messages.push(m.content[0].text) };
+  const target = { id: 'target', session: { header }, steer: m => messages.push(m.content[0].text) };
   class Agents extends Service {
     constructor(ctx) { super(ctx, 'agents'); }
     get() { owners.push(this.ctx.owner); return live; }

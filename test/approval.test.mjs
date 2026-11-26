@@ -6,10 +6,11 @@ import { withCommunicationHost } from './helpers/communication-host.mjs';
 // Only public rc.2 service contracts are exposed. A private effectivePolicy
 // call would fail, rather than silently being supported by this fixture.
 function host({ mode = 'workspace-write', policy = 'ask', configured = 'ask', outcome = 'allowed-once', missing, request } = {}) {
-  const calls = { create: 0, resume: 0, followup: 0, request: [] };
+  const calls = { create: 0, resume: 0, delivered: 0, request: [] };
   const session = { header: { id: 'caller', cwd: '/workspace' } };
   const controller = new AbortController();
-  const target = { id: 'target', session: { header: { id: 'target', cwd: '/workspace' } }, followup() { calls.followup++; } };
+  const deliver = () => { calls.delivered++; };
+  const target = { id: 'target', session: { header: { id: 'target', cwd: '/workspace' } }, followup: deliver, steer: deliver };
   const approval = {
     config: { policy: configured },
     overrideOf(value) { assert.equal(value, session); return policy; },
@@ -52,11 +53,11 @@ for (const name of ['session_create', 'session_send']) {
         const bypass = mode === 'danger-full-access' && policy === 'never';
         if (policy === 'ask' || bypass) {
           await h.run(name);
-          assert.equal(h.calls.followup, 1);
+          assert.equal(h.calls.delivered, 1);
           assert.equal(h.calls.create, name === 'session_create' ? 1 : 0);
         } else {
           await assert.rejects(h.run(name), /declined/);
-          assert.equal(h.calls.followup + h.calls.create + h.calls.resume, 0);
+          assert.equal(h.calls.delivered + h.calls.create + h.calls.resume, 0);
         }
         assert.equal(h.calls.request.length, bypass ? 0 : 1);
         if (!bypass) {
@@ -71,21 +72,21 @@ for (const name of ['session_create', 'session_send']) {
     test(`${name}: fail closed on ${JSON.stringify(outcome)}`, async () => {
       const h = host({ request: async () => outcome });
       await assert.rejects(h.run(name));
-      assert.equal(h.calls.followup + h.calls.create + h.calls.resume, 0);
+      assert.equal(h.calls.delivered + h.calls.create + h.calls.resume, 0);
     });
   }
   for (const missing of ['approval', 'sandboxPolicy']) {
     test(`${name}: missing ${missing} fails closed even in full access`, async () => {
       const h = host({ missing, mode: 'danger-full-access', policy: 'never' });
       await assert.rejects(h.run(name), /cannot establish permission/);
-      assert.equal(h.calls.followup + h.calls.create + h.calls.resume, 0);
+      assert.equal(h.calls.delivered + h.calls.create + h.calls.resume, 0);
     });
   }
   for (const settings of [{ mode: 'unknown' }, { policy: 'unknown' }]) {
     test(`${name}: unknown permission ${JSON.stringify(settings)} fails closed`, async () => {
       const h = host(settings);
       await assert.rejects(h.run(name), /cannot establish permission/);
-      assert.equal(h.calls.followup + h.calls.create + h.calls.resume, 0);
+      assert.equal(h.calls.delivered + h.calls.create + h.calls.resume, 0);
     });
   }
   test(`${name}: session override takes precedence over configured never`, async () => {
@@ -98,16 +99,16 @@ for (const name of ['session_create', 'session_send']) {
     h.controller.abort();
     await assert.rejects(h.run(name), /cancelled|aborted/);
     assert.equal(h.calls.request.length, 0);
-    assert.equal(h.calls.followup + h.calls.create + h.calls.resume, 0);
+    assert.equal(h.calls.delivered + h.calls.create + h.calls.resume, 0);
   });
   test(`${name}: late allowance after cancellation does not write`, async () => {
     const h = host({ request: async (_, controller) => { controller.abort(); return 'allowed-once'; } });
     await assert.rejects(h.run(name), /cancelled|aborted/);
-    assert.equal(h.calls.followup + h.calls.create + h.calls.resume, 0);
+    assert.equal(h.calls.delivered + h.calls.create + h.calls.resume, 0);
   });
   test(`${name}: throwing approval service does not write`, async () => {
     const h = host({ request: async () => { throw new Error('service failed'); } });
     await assert.rejects(h.run(name), /service failed/);
-    assert.equal(h.calls.followup + h.calls.create + h.calls.resume, 0);
+    assert.equal(h.calls.delivered + h.calls.create + h.calls.resume, 0);
   });
 }
