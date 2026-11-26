@@ -22,7 +22,7 @@ In a DSH conversation, try:
 
 > Start a conversation called “SQLite vs. PostgreSQL”. Ask it to compare both databases for a local budgeting app used by one person, then bring back its recommendation.
 
-Approve the request if DSH prompts you. Once the new conversation finishes, the AI can bring its answer back to the original chat. Click the conversation name in the creation card (「已创建会话」) to open it and see the full exchange. For a follow-up, ask the AI to find the conversation by title and tell it what to do next.
+Approve the request if DSH prompts you. Once the new conversation finishes, the AI can bring its answer back to the original chat. Click the linked conversation name in the AI's reply or in the creation card (「已创建会话」) to open it in the current DSH window. For a follow-up, ask the AI to find the conversation by title and tell it what to do next.
 
 Include the background, file paths, and expected result in the task. The new conversation starts with the task text you provide.
 

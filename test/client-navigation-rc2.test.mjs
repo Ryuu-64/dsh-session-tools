@@ -62,3 +62,44 @@ test('failed history remains a failed selected Session, without cancelling work'
   await h.mountWorkspace();
   assert.ok(h.entry(), 'service reload registers exactly one working card');
 });
+
+test('assistant Markdown session links navigate by catalog identity and release their handlers', async t => {
+  const document = new EventTarget();
+  const h = await clientRc2(t, { ids: [a, b], document });
+  const workspace = await h.mountWorkspace();
+  h.click(a);
+
+  function activate(href, { assistant = true, type = 'click', ...modifiers } = {}) {
+    const row = { matches: () => assistant, closest: () => ({}) };
+    const anchor = { getAttribute: () => href, closest: () => row };
+    const event = Object.assign(new Event(type, { cancelable: true }), { button: 0, ...modifiers });
+    Object.defineProperty(event, 'target', { value: { closest: () => anchor } });
+    document.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+
+  const prefix = 'https://dsh.invalid/session/';
+  const target = prefix + b;
+  assert.equal(activate('https://example.com/session/' + b), false);
+  assert.equal(activate(target, { assistant: false }), false);
+  assert.equal(activate(target, { type: 'auxclick', button: 1 }), true);
+  assert.equal(activate(target, { ctrlKey: true }), true);
+  assert.equal(activate(prefix + 'missing'), true);
+  assert.deepEqual(h.opened, [a]);
+
+  const workspaces = h.ctx.workspaces.list;
+  const snapshot = workspaces.getSnapshot();
+  workspaces.set({ ...snapshot, archivedSessionIds: [b] });
+  assert.equal(activate(target), true);
+  assert.deepEqual(h.opened, [a]);
+
+  workspaces.set(snapshot);
+  assert.equal(activate(target), true);
+  await tick();
+  assert.equal(h.ctx.sessions.binding(b).session.getSnapshot().openState, 'open');
+  assert.equal(h.ctx.sessions.retainInfo(a).getSnapshot().referenceCount, 0);
+  assert.deepEqual(h.opened, [a, b]);
+  assert.deepEqual(h.cancelled, []);
+  await workspace.dispose();
+  assert.equal(activate(target), false, 'unloading navigation removes document listeners');
+});

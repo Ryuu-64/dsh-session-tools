@@ -30,10 +30,12 @@ async function createAndReload(h, id, title) {
   assert.equal('value' in replay.data, false, 'canonical values are not the replay contract');
   assert.equal('meta' in toolResult(replay), false, 'metadata belongs to the event, not content');
   assert.match(JSON.stringify(toolResult(replay).content), /Created session:/);
+  const text = toolResult(replay).content.find(part => part.type === 'text').text;
+  assert.deepEqual([...text.matchAll(/\]\(https:\/\/dsh\.invalid\/session\/([^)]*)\)/g)].map(match => match[1]), [sessionId]);
   return { live, replay, sessionId };
 }
 
-for (const title of [`Discuss ${first}`, `${first} ${second}`, `first line\n${first}\n<&> "`, 'same title']) {
+for (const title of [`Discuss ${first}`, `${first} ${second}`, `first line\n${first}\n<&> "`, 'same title', `[issue](https://example.com) **fix**`]) {
   test(`rc.2 persists and reloads a trustworthy target for ${JSON.stringify(title)}`, { timeout: 15000 }, async t => {
     const h = await realHost(t);
     h.ctx.on('approval/request', () => 'allowed-once');

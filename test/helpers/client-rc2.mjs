@@ -21,7 +21,7 @@ function resolveBrowserBundle(name) {
   return typeof browser === 'string' ? resolve(dirname(require.resolve(`${pkg}/package.json`)), browser)
     : require.resolve(`${pkg}/client`);
 }
-export function bundles() {
+export function bundles(document) {
   const storage = new Map();
   const modules = new Map(Object.entries({
     '@deepseek-ai/cordis': cordis, '@deepseek-ai/dsh-client-store': store,
@@ -36,7 +36,8 @@ export function bundles() {
     if (modules.has(name)) return modules.get(name);
     let result;
     vm.runInNewContext(readFileSync(path ?? resolveBrowserBundle(name), 'utf8'), {
-      ...globals, window: { __ModuleLoader__: { load(definition) { result = definition.factory(dependency => load(dependency)); } } },
+      ...globals, document: name === '@ryuu-64/dsh-session-tools' ? document : undefined,
+      window: { __ModuleLoader__: { load(definition) { result = definition.factory(dependency => load(dependency)); } } },
     });
     modules.set(name, result);
     return result;
@@ -49,8 +50,8 @@ const stop = signal => new Promise(resolve => {
   else signal.addEventListener('abort', resolve, { once: true });
 });
 
-export async function clientRc2(t, { ids, delayed = new Map(), rejected = new Set(), pluginPath } = {}) {
-  const b = bundles();
+export async function clientRc2(t, { ids, delayed = new Map(), rejected = new Set(), pluginPath, document } = {}) {
+  const b = bundles(document);
   const ctx = new cordis.Context();
   t.after(() => ctx.fiber.dispose());
   const gateway = b.load('@deepseek-ai/dsh-api-gateway/client');
