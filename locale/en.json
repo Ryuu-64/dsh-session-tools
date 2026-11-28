@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Session Tools",
-    "description": "Delegate tasks between DeepSeek Harness (DSH) conversations: create sessions, send follow-ups, track replies, and control sending and receiving.",
+    "description": "Delegate tasks across DeepSeek Harness conversations, create sessions, send follow-ups, and bring replies back to the original chat.",
     "detail": "README.md"
   }
 }

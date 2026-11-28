@@ -1,8 +1,8 @@
-# dsh-session-tools · Cross-session tasks for DeepSeek Harness
+# @ryuu-64/dsh-session-tools · Cross-session task delegation for DeepSeek Harness
 
 English | [简体中文](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/README.zh-CN.md)
 
-npm: [@ryuu-64/dsh-session-tools](https://www.npmjs.com/package/@ryuu-64/dsh-session-tools) · Maintained by [Ryuu-64](https://github.com/Ryuu-64).
+npm: [@ryuu-64/dsh-session-tools](https://www.npmjs.com/package/@ryuu-64/dsh-session-tools) · Maintained by [Ryuu-64](https://github.com/Ryuu-64). · [Plugin page](https://ryuu-64.github.io/dsh/en/dsh-session-tools/)
 
 Ask the AI in [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) to start a separate conversation, give it a task, and bring the result back to your current chat.
 
@@ -12,9 +12,21 @@ Ask the AI in [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-h
 
 ## Install
 
-Copy this request into an AI assistant that can operate your computer.
+**Desktop**
 
-> Install this plugin in my DSH setup, check compatibility, and confirm it is enabled: https://github.com/Ryuu-64/dsh-session-tools
+```sh
+dsh plugin --profile desktop add @ryuu-64/dsh-session-tools
+```
+
+**Web**
+
+```sh
+dsh plugin --profile web add @ryuu-64/dsh-session-tools
+```
+
+Supported DSH versions for this workflow: `0.2.0-rc.2`, `0.2.2-rc.3`, `0.2.2-rc.5`. See the [compatibility notes](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/compatibility.md) for tested hosts and limits.
+
+Use Node.js 24.9.0 or later in the 24.x line with DSH 0.2.2-rc.3 or rc.5.
 
 ## Delegate your first task
 

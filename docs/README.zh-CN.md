@@ -1,8 +1,8 @@
-# dsh-session-tools · DeepSeek Harness 跨会话协作
+# @ryuu-64/dsh-session-tools · DeepSeek Harness 跨会话任务委派
 
 [English](https://github.com/Ryuu-64/dsh-session-tools/blob/main/README.md) | 简体中文
 
-npm 包：[@ryuu-64/dsh-session-tools](https://www.npmjs.com/package/@ryuu-64/dsh-session-tools) · 由 [Ryuu-64](https://github.com/Ryuu-64) 维护。
+npm 包：[@ryuu-64/dsh-session-tools](https://www.npmjs.com/package/@ryuu-64/dsh-session-tools) · 由 [Ryuu-64](https://github.com/Ryuu-64) 维护。 · [插件页面](https://ryuu-64.github.io/dsh/dsh-session-tools/)
 
 让 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 里的 AI 新建独立会话、给其他会话派任务，并把结果带回当前对话。
 
@@ -12,9 +12,21 @@ npm 包：[@ryuu-64/dsh-session-tools](https://www.npmjs.com/package/@ryuu-64/ds
 
 ## 安装
 
-把下面这句话发给能操作你电脑的 AI。
+**桌面版**
 
-> 请帮我安装这个 DSH 插件，检查兼容性并确认已启用：https://github.com/Ryuu-64/dsh-session-tools
+```sh
+dsh plugin --profile desktop add @ryuu-64/dsh-session-tools
+```
+
+**Web 版**
+
+```sh
+dsh plugin --profile web add @ryuu-64/dsh-session-tools
+```
+
+这套操作适用 DSH `0.2.0-rc.2`、`0.2.2-rc.3`、`0.2.2-rc.5`。各版本的实测环境和限制见[兼容说明](https://github.com/Ryuu-64/dsh-session-tools/blob/main/docs/compatibility.md)。
+
+使用 DSH 0.2.2-rc.3 或 rc.5 时，请使用 Node.js 24.9.0 或更新的 24 系列。
 
 ## 派出第一个任务
 

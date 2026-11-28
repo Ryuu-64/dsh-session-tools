@@ -1,7 +1,7 @@
 {
   "name": "@ryuu-64/dsh-session-tools",
   "version": "0.10.1",
-  "description": "Delegate tasks between DeepSeek Harness (DSH) conversations: create sessions, send follow-ups, track replies, and control sending and receiving.",
+  "description": "Delegate tasks across DeepSeek Harness conversations, create sessions, send follow-ups, and bring replies back to the original chat.",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -15,13 +15,14 @@
     "cross-session",
     "task-delegation",
     "sessions",
-    "tools"
+    "tools",
+    "session-messaging"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Ryuu-64/dsh-session-tools.git"
   },
-  "homepage": "https://github.com/Ryuu-64/dsh-session-tools#readme",
+  "homepage": "https://ryuu-64.github.io/dsh/en/dsh-session-tools/",
   "bugs": {
     "url": "https://github.com/Ryuu-64/dsh-session-tools/issues"
   },

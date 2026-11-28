@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "会话工具",
-    "description": "在 DeepSeek Harness（DSH）的会话之间派发任务：创建会话、发送后续消息、跟踪回复，并控制消息收发。",
+    "description": "在 DeepSeek Harness 中跨会话派发任务、发送后续消息，并把回复带回原会话。",
     "detail": "docs/README.zh-CN.md"
   }
 }
